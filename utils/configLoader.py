@@ -156,6 +156,7 @@ def open_config(path: str, dct:dict=None):
     )
     return Config(
         user_list=Path(res["user_list"]),
+        parallel=res["parallel"],
         accounts_list=Path(res["accounts_list"]),
         exportType=res["exportType"],
         usersforeachaccount=res["usersforeachaccount"],

@@ -2,18 +2,18 @@ from datetime import datetime
 import os
 import re
 from typing import Dict, List, Tuple,Union
-from ButtonHolder import ButtonHolder
-from Tiles import StringTile, Tile, MiniTile
+from extracomps.ButtonHolder import ButtonHolder
+from extracomps.Tiles import StringTile, Tile, MiniTile
 from comps import *
-from ConsoleList import ConsoleList
+from extracomps.ConsoleList import ConsoleList
 from PyQt6.QtWidgets import QApplication, QStyleFactory, QAbstractItemView, QMessageBox,QInputDialog
 from PyQt6.QtGui import QIntValidator
 import sys
 import json
-from configLoader import open_config
+from utils.configLoader import open_config
 import re
 
-from instaProcess import InstaProcess, License
+from utils.instaProcess import InstaProcess, License
 
 def matchTo(selection:int, values:List|Tuple) -> str:
     if selection >= len(values):
@@ -556,15 +556,11 @@ class MainWindow(Window,Configured):
                         Horizontal(
                             Button("Start").id(
                                 "b-start").action(self.start),
-                            Button("Pause").id("b-pause").enabled(False),
                             Button("Stop").id("b-stop").enabled(False),
                             Button("Export...").id("b-export")
                         ).expandMin(),
                         Horizontal(
-                            Button("Logout").id("b-logout").enabled(False),
-                            Button("Skip next target").id("b-nextuser").enabled(False),
-                            Button("Skip next 10 targets").id(
-                                "b-next10users").enabled(False)
+                            Button("Logout").id("b-logout").enabled(False)
                         ).expandMin(),
                     (
                         [
@@ -668,23 +664,29 @@ class MainWindow(Window,Configured):
             return
         if config:
             try:
-                self.worker = InstaProcess(config,License.unlimited,ButtonHolder(
+                self.worker = InstaProcess(config, License.unlimited, ButtonHolder(
                     Finder.get("b-start"),
-                    Finder.get("b-pause"),
                     Finder.get("b-stop"),
                     Finder.get("b-export"),
-                    Finder.get("b-logout"),
-                    Finder.get("b-nextuser"),
-                    Finder.get("b-next10users")))
-                def process_input_code(prompt:str=""):
-                    # ask user for a string
-                    code = QInputDialog.getText(self, "Code required", prompt)
-                    self.worker.set_input_code(code[0], code[1])
-                self.worker.request_input_code.connect(process_input_code)
+                    Finder.get("b-logout")))
                 self.worker.console.connect(self.consoleWrite)
+                Finder.get("b-stop").action(lambda:self.worker.stop_process())
+                Finder.get("b-logout").action(lambda:self.worker.acc_logout())
+                Finder.get("b-export").action(lambda:self.export_command(self.worker.export_logs))
+                self.worker.request_input_code.connect(self.ask_user_for_code)
                 self.worker.start()
-            except:
-                QMessageBox.critical(self, "Error", "Failed to start process")
+            except Exception as e:
+                import traceback
+                QMessageBox.critical(self, "Error", f"Failed to start process due to {traceback.format_exc()}")
+    def ask_user_for_code(self,for_,challenge_type,code):
+        # ask user a string input for the code
+        response, ok = QInputDialog.getText(self, "Authentication", f"Enter the {for_} code:", Field.EchoMode.Normal)
+        if not ok:
+            code.setCode("BAD")
+        else:
+            code.setCode(response)
+    def export_command(self,callable):
+        callable(QFileDialog.getExistingDirectory(self, "Select a folder"))
     def add_proxy(self,lst:ListWidget):
         self.win = Vertical()
         self.win.setWindowTitle("Add Proxy")

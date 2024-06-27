@@ -1,6 +1,6 @@
 from comps.Elements import Finder
-from Tiles import StringTile, Tile
-from ConsoleList import ConsoleList
+from extracomps.Tiles import StringTile, Tile
+from extracomps.ConsoleList import ConsoleList
 
 class ConsoleWriter:
     def any(message: str):

@@ -2074,6 +2074,8 @@ class SpinBox(QSpinBox, BasicElement, Linked, TextEditable, Ranged):
         self.setValue(value)
         return self
     
+    set = set_value
+    
     def get(self) -> int:
         return self.value()
 
