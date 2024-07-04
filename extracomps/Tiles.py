@@ -19,6 +19,11 @@ class Tile(Vertical):
         self.counter_label.set(str(self.counter))
         return self
     inc = increment
+    def decrease(self) -> Self:
+        self.counter -= 1
+        self.counter_label.set(str(self.counter))
+        return self
+    dec = decrease
 
     def set(self, value) -> Self:
         self.counter = value

@@ -12,7 +12,7 @@ import sys
 import json
 from utils.configLoader import open_config
 import re
-
+from extracomps.ConsoleWriter import Incrementer
 from utils.instaProcess import InstaProcess, License
 
 def matchTo(selection:int, values:List|Tuple) -> str:
@@ -203,7 +203,9 @@ class Configured:
                     "android": Finder.get("q-android").get()
                 },
                 "userAgentOrder": Finder.get("q-deviceagentorder").get()
-            }
+            },
+            "timebeforelogin": Finder.get("q-timebeforelogin").get(),
+            "timeafterlogin": Finder.get("q-timeafterlogin").get()
         }
     def saveConfiguration(self):
         os.system("clear")
@@ -322,6 +324,11 @@ class Configured:
                 "q-android").set(configuration_dict["device"]["userAgent"]["android"])
             Finder.get(
                 "q-deviceagentorder").set(configuration_dict["device"]["userAgentOrder"])
+            # time before and after login
+            Finder.get(
+                "q-timebeforelogin").set(configuration_dict["timebeforelogin"])
+            Finder.get(
+                "q-timeafterlogin").set(configuration_dict["timeafterlogin"])
             self.update()
             Finder.get("currentConfig").set(self.path)
 
@@ -452,8 +459,8 @@ class MainWindow(Window,Configured):
                             )
                             # endregion
                         ],
-                        Text("How many users for each account",Text.Type.P3),
-                        Field().set_int().id("q-usersforeachaccount"),
+                        Vertical(Text("How many users for each account",Text.Type.P3),
+                        Field().set_int().id("q-usersforeachaccount")),
                         GroupBox(
                             (
                                 [
@@ -550,50 +557,41 @@ class MainWindow(Window,Configured):
             Heading("Select a script"),
             HDivider(),
             GroupBox([Button("Select").set_icon(QIcon("folder.png")).action(self.load_config), Label("Current"),Spacer(),Label("None").id("currentConfig")], "Load script"),
-            GroupBox(
-                ScrollableContainer(
-                    (
-                        Horizontal(
-                            Button("Start").id(
-                                "b-start").action(self.start),
-                            Button("Stop").id("b-stop").enabled(False),
-                            Button("Export...").id("b-export")
-                        ).expandMin(),
-                        Horizontal(
-                            Button("Logout").id("b-logout").enabled(False)
-                        ).expandMin(),
-                    (
+            GroupBox( 
+                (
+                    Horizontal(
+                        Button("Start").id(
+                            "b-start").action(self.start),
+                        Button("Stop").id("b-stop").enabled(False),
+                        Button("Export...").id("b-export").enabled(False),
+                        Button("Logout").id("b-logout").enabled(False)
+                    ).expandMin(),
+                    Vertical(
+                        Button("Reset counters").action(lambda: Incrementer().resetAll()),
                         [
-                            Heading("Script:", Heading.Type.H3),
-                            Spacer(),
-                            Heading("Idle", Heading.Type.H3)
-                        ],
-                        Heading("Interactions"),
-                        [
-                            Tile("Total"),
-                            Tile("Account")
+                            Tile("Interactions").id("Total"),
+                            Tile("Logins").id("Logins")
                         ],
                         [
-                            StringTile("Account")
+                            StringTile("Current account in use").id("Account")
                         ],
-                        Heading("Details"),
+                        Heading("Overall data",hp=Heading.Type.H2),
                         [
-                            MiniTile("DMs"),
-                            MiniTile("Comments"),
-                            MiniTile("Likes"),
-                            MiniTile("Follows")
+                            MiniTile("DMs").id("DMs"),
+                            MiniTile("Comments").id("Comments"),
+                            MiniTile("Likes").id("Likes"),
+                            MiniTile("Follows").id("Follows")
                         ],
-                        Heading("Status"),
                         [
-                            [Tile("Banned")],
-                            [MiniTile("Blocked"),
-                            MiniTile("Successful"),]
+                            [Tile("Banned").id("Banned")],
+                            [MiniTile("Blocked").id("Blocked"),
+                            MiniTile("Successful").id("Successful"),]
                         ],
-                        Heading("Last messages"),
-                        ConsoleList(0).id("q-console").setH(1000),
-                    )
-                )
-            ), "Task manager")
+                    ).expandMin(),
+                    Heading("Last messages"),
+                    ScrollableContainer(
+                        ConsoleList(0).id("q-console").setH(500)),
+            ),"Task manager")
         )
         extract_section=(
             Heading("Extract data"),
@@ -629,7 +627,28 @@ class MainWindow(Window,Configured):
         # Setting up the main window properties
         self.setGeometry(100, 100, 800, 600)
         self.setWindowTitle("QInsta")
-
+    def increment_total(self):
+        Finder.get("Total").increment()
+    def increment_logins(self):
+        Finder.get("Logins").increment()
+    def set_current_account(self, account):
+        Finder.get("Account").set(account)
+    def increment_dms(self):
+        Finder.get("DMs").increment()
+    def increment_comments(self):
+        Finder.get("Comments").increment()
+    def increment_likes(self):
+        Finder.get("Likes").increment()
+    def increment_follows(self):
+        Finder.get("Follows").increment()
+    def increment_banned(self):
+        Finder.get("Banned").increment()
+    def increment_blocked(self):
+        Finder.get("Blocked").increment()
+    def increment_successful(self):
+        Finder.get("Successful").increment()
+    def decrease_successful(self):
+        Finder.get("Successful").decrease()
     def delete_selected_parameter(self, widget_id):
         idx = Finder.get(widget_id).currentIndex() # type: ignore
         if idx:
@@ -664,11 +683,22 @@ class MainWindow(Window,Configured):
             return
         if config:
             try:
-                self.worker = InstaProcess(config, License.unlimited, ButtonHolder(
+                self.worker = InstaProcess(config, ButtonHolder(
                     Finder.get("b-start"),
                     Finder.get("b-stop"),
                     Finder.get("b-export"),
                     Finder.get("b-logout")))
+                self.worker.total.connect(self.increment_total)
+                self.worker.login.connect(self.increment_logins)
+                self.worker.current_account.connect(self.set_current_account)
+                self.worker.dms.connect(self.increment_dms)
+                self.worker.comment.connect(self.increment_comments)
+                self.worker.like.connect(self.increment_likes)
+                self.worker.follow.connect(self.increment_follows)
+                self.worker.banned.connect(self.increment_banned)
+                self.worker.blocked.connect(self.increment_blocked)
+                self.worker.successful.connect(self.increment_successful)
+                self.worker.dec_successful.connect(self.decrease_successful)
                 self.worker.console.connect(self.consoleWrite)
                 Finder.get("b-stop").action(lambda:self.worker.stop_process())
                 Finder.get("b-logout").action(lambda:self.worker.acc_logout())

@@ -25,31 +25,36 @@ class ConsoleList(Vertical):
         self.console_list_widget = ListWidget()
         self.add(self.console_list_widget)
         self.minLevel = minLevel
+        self.console_list_widget.setWordWrap(True)
+        self.console_list_widget.setSpacing(5)
 
     def emit(self, message: str, type: "ConsoleList.Type" = Type.INFO, dt: bool = True):
         #if self.minLevel < type.value:
         #    return self
         if self.console_list_widget.count() > 49:
             self.console_list_widget.remove(0)
+        
         self.console_list_widget.add(
             Horizontal(
-                Text(message).wrap(True),
-                Spacer(),
                 Text(
-                    type.name+" at "+datetime.now().strftime("%T") if dt else ""
+                    (type.name if type!=ConsoleList.Type.DEBUG else "INFO")+" at "+datetime.now().strftime("%T") if dt else ""
                 ).set_style(
                     Style()
                     .fontFamily("Courier New")
                     .fontWeight("bold")
-                )
-            ).set_style(
-                Style().backgroundColor(self.col[type.value])
+                ).expandMax(),
+                Text(message).wrap(True).set_style(
+                    Style().backgroundColor(self.col[type.value])
+                ).expandMin()
             )
         )
         self.console_list_widget.update()
+        # scroll to last bottom
+        self.console_list_widget.scrollToBottom()
         if type == ConsoleList.Type.CRITICAL:
             QMessageBox.critical(self, "Critical error", message)
         return self
     def clear(self):
         self.console_list_widget.clear()
+        self.update()
         return self

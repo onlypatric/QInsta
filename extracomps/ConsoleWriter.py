@@ -35,8 +35,8 @@ class Incrementer:
     successful:"Tile"
     def __init__(self) -> None:
         self.totalInt=Finder.get("Total")
-        self.accountInt=Finder.get("Account")
-        self.currUser = Finder.get("User")
+        self.accountInt=Finder.get("Logins")
+        self.currUser = Finder.get("Account")
         self.dms = Finder.get("DMs")
         self.comments = Finder.get("Comments")
         self.likes = Finder.get("Likes")

@@ -92,6 +92,8 @@ class Config:
     sendingParams: SendingParams = field(default_factory=SendingParams)
     device: Device = field(default_factory=lambda: Device(
         {"iphone": False, "android": True}))
+    timebeforelogin:int=0
+    timeafterlogin:int=0
 
 
 def open_config(path: str, dct:dict=None):
@@ -168,5 +170,7 @@ def open_config(path: str, dct:dict=None):
         otherTimings=otherTimings,
         saveParams=saveParams,
         sendingParams=sendingParams,
-        device=device
+        device=device,
+        timebeforelogin=res["timebeforelogin"],
+        timeafterlogin=res["timeafterlogin"]
     )

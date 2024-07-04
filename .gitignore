@@ -1,3 +1,5 @@
 /.DS_Store
 configurations/
 __pycache__/
+build/
+dist/
