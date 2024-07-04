@@ -10,10 +10,11 @@ from PyQt6.QtWidgets import QApplication, QStyleFactory, QAbstractItemView, QMes
 from PyQt6.QtGui import QIntValidator
 import sys
 import json
+from utils.ExtractionParams import ExtractionParams
 from utils.configLoader import open_config
 import re
 from extracomps.ConsoleWriter import Incrementer
-from utils.instaProcess import InstaProcess, License
+from utils.instaProcess import ExtractorCore, InstaProcess, License
 
 def matchTo(selection:int, values:List|Tuple) -> str:
     if selection >= len(values):
@@ -606,9 +607,11 @@ class MainWindow(Window,Configured):
                         "Profile, hashtag or post url").id("e-target")], "Target"),
                     GroupBox([Field().id("e-amount")], "Max amount to extract"),
                 ).expandMin(),
-                GroupBox([Button("Save to..."),CheckBox("Save userID")], "Output file").expandMin(),
+                GroupBox([Field().id("e-proxy")], "Proxy"),
+                GroupBox([Button("Select folder").action(self.select_extractor_save_folder),Label("None").id("e-folder"),CheckBox("Save extra data file").id("e-saveextra")], "Output file").expandMin(),
+                Button("Start script").action(self.start_extraction),
                 Text("Output console"),
-                ListWidget()
+                ConsoleList().id("e-console")
             ),
         )
         # Creating components using your library
@@ -627,6 +630,23 @@ class MainWindow(Window,Configured):
         # Setting up the main window properties
         self.setGeometry(100, 100, 800, 600)
         self.setWindowTitle("QInsta")
+    def start_extraction(self):
+        ep = ExtractionParams(
+            username=Finder.get("e-username").text(),
+            password=Finder.get("e-password").text(),
+            target_type=Finder.get("e-targettype").currentText(),
+            target=Finder.get("e-target").text(),
+            amount=Finder.get("e-amount").text(),
+            proxy=Finder.get("e-proxy").text(),
+            save_extra=Finder.get("e-saveextra").isChecked(),
+            save_folder=Finder.get("e-folder").text()
+        )
+        ec = ExtractorCore(ep, self.eConsoleWrite)
+        ec.start()
+    def select_extractor_save_folder(self):
+        folder = QFileDialog.getExistingDirectory(self, "Select Folder")
+        if folder:
+            Finder.get("e-folder").setText(folder)
     def increment_total(self):
         Finder.get("Total").increment()
     def increment_logins(self):
@@ -655,6 +675,9 @@ class MainWindow(Window,Configured):
             Finder.get(widget_id).remove(idx.row()) # type: ignore
     def consoleWrite(self, message, type):
         Finder.get("q-console").emit(message, type)
+
+    def eConsoleWrite(self, message, type):
+        Finder.get("e-console").emit(message, type)
     def start(self):
         path = Finder.get("currentConfig").text()
         use_curr_config = False

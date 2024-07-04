@@ -10,6 +10,7 @@ from instagrapi import Client,exceptions,types
 from PyQt6.QtCore import QThread, pyqtSignal,pyqtSlot
 from extracomps.ButtonHolder import ButtonHolder
 from utils.configLoader import Config,Filters
+from utils.ExtractionParams import ExtractionParams,TargetType
 from extracomps.ConsoleWriter import ConsoleWriter
 from extracomps.ConsoleList import ConsoleList
 import pandas as pd
@@ -208,7 +209,14 @@ class InstagramSignals:
     blocked = pyqtSignal()
     successful = pyqtSignal()
     dec_successful = pyqtSignal()
-class InstaProcess(QThread, Readables, ConsoleConnected, InstagramSignals):
+class CodeConnected:
+    def obtain_code(self, for_: str, challenge_type: str):
+        self.info(f"Asking verification code for {challenge_type}")
+        self.request_input_code.emit(for_, str(challenge_type), self.code)
+        while self.code.code is None:
+            self.sleep(0.5)
+        return self.code.obtainCode()
+class InstaProcess(QThread, Readables, ConsoleConnected, InstagramSignals, CodeConnected):
     started = pyqtSignal()
     paused = pyqtSignal()
     finished = pyqtSignal()
@@ -373,12 +381,7 @@ class InstaProcess(QThread, Readables, ConsoleConnected, InstagramSignals):
         self.pc.run()
         self.buttons.disableAll()
 
-    def obtain_code(self, for_:str, challenge_type:str):
-        self.info(f"Asking verification code for {challenge_type}")
-        self.request_input_code.emit(for_,str(challenge_type),self.code)
-        while self.code.code is None:
-            self.sleep(0.5)
-        return self.code.obtainCode()
+
     @pyqtSlot()
     def stop_process(self):
         self.stop = True
@@ -1145,3 +1148,219 @@ class ProcessCore(ProcessUtils,InstaCore):
                 self.parent.stop = False
                 return
 # ------------------------------------------------------------------ END CHECK FOR STOP SIGNAL
+
+
+class ExtractorCore(QThread,CodeConnected):
+    out: ConsoleConnected
+    testmode: bool = TEST_MODE
+    request_input_code = pyqtSignal(str, str, Code)
+    code = Code()
+
+    class LoginStatus(Enum):
+        OK = 1
+        BAD_PASSWORD = 2
+        BAD_USERNAME = 3
+        LOGIN_REQUIRED = 4
+        GENERAL_ERROR = 5
+        BLOCKED = 6
+        BANNED = 7
+
+    class UserStatus(Enum):
+        OK = 0
+        GENERAL_ERROR = 1
+        USER_NOT_FOUND = 2
+        BANNED = 3
+        BLOCKED = 4
+        UNREACHABLE = 5
+        MEDIA_NOT_FOUND = 6
+    class MediaStatus(Enum):
+        OK = 0
+        GENERAL_ERROR = 1
+        USER_NOT_FOUND = 2
+        BANNED = 3
+        BLOCKED = 4
+        UNREACHABLE = 5
+    def __init__(self, config:ExtractionParams, out: ConsoleConnected,testmode: bool = False) -> None:
+        self.config = config
+        self.appdatapath = AppDataPaths("EQInsta")
+        self.cookiepath = self.appdatapath.get_config_path("cookies", create=True)
+
+    def new_client(self) -> Client:
+        client = Client()
+        client.challenge_code_handler = self.obtain_code
+        if self.config.proxy!="":
+            self.out.debug("Using proxy "+self.config.proxy)
+            client.set_proxy(self.config.proxy)
+        self.out.debug("Initalized new Instagram Instance")
+        return client
+
+    def save_cookies(self, client: Client, username: str):
+        if self.testmode:
+            return
+        if not os.path.exists(self.cookiepath):
+            os.makedirs(self.cookiepath)
+        client.dump_settings(os.path.join(self.cookiepath, f"{username}.json"))
+    def remove_cookies(self, username: str):
+        if self.testmode:
+            return
+        os.remove(os.path.join(self.cookiepath, f"{username}.json"))
+    def get_cookies(self, username: str) -> dict:
+        return Client.load_settings(os.path.join(self.cookiepath, f"{username}.json"))
+    def check_cookies_exist(self, username: str) -> bool:
+        return os.path.exists(os.path.join(self.cookiepath, f"{username}.json"))
+    def login(self, client: Client, attempt_twice: bool = True, user: Dict[str, str] = None) -> LoginStatus:
+        credentials = user
+        try:
+            if self.check_cookies_exist(credentials["username"]) and not self.testmode:
+                self.out.info("Found cookies for "+credentials["username"])
+                cookies = self.get_cookies(credentials["username"])
+                client.set_settings(cookies)
+                try:
+                    client.new_feed_exist()
+                except:
+                    try:
+                        client.logout()
+                    except:
+                        pass
+                    self.remove_cookies(credentials["username"])
+                    if attempt_twice:
+                        self.out.warning(
+                            "Failed to login, removing cookies and trying again...")
+                        return self.login(client, False, credentials)
+                return self.LoginStatus.OK
+            if self.testmode:
+                client.username = credentials["username"]
+                status = random.choices([self.LoginStatus.OK, self.LoginStatus.BAD_PASSWORD, self.LoginStatus.BAD_USERNAME,
+                                        self.LoginStatus.LOGIN_REQUIRED, self.LoginStatus.GENERAL_ERROR], weights=[0.9, 0.05, 0.05, 0.05, 0.05])[0]
+                return status
+            client.login(credentials["username"], credentials["password"])
+            return self.LoginStatus.OK
+        except exceptions.UserNotFound:
+            return self.LoginStatus.BAD_USERNAME
+        except exceptions.BadPassword:
+            return self.LoginStatus.BAD_PASSWORD
+        except exceptions.LoginRequired:
+            return self.LoginStatus.LOGIN_REQUIRED
+        except (exceptions.ChallengeError, exceptions.ChallengeRedirection, exceptions.ChallengeRequired, exceptions.ChallengeSelfieCaptcha, exceptions.ChallengeUnknownStep, exceptions.RecaptchaChallengeForm):
+            return self.LoginStatus.BANNED
+        except exceptions.RateLimitError:
+            self.out.error("Rate limit reached, please try again later.")
+            return self.LoginStatus.BLOCKED
+        except exceptions.ProxyAddressIsBlocked:
+            self.out.error(
+                "IP address is blocked, if you are using a proxy or VPN make sure it is not shared.")
+            return self.LoginStatus.BLOCKED
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return self.LoginStatus.GENERAL_ERROR
+    def random_user_info(self,target:str):
+        return types.User(pk="123", username=target, full_name=target, is_private=True, profile_pic_url=types.HttpUrl("https://www.google.com"), profile_pic_url_hd=types.HttpUrl("https://www.google.com"), is_verified=random.random() > 0.50, media_count=random.randint(0, 100), follower_count=random.randint(0, 10000), following_count=random.randint(0, 1000), is_business=False)
+    def get_user_info(self, client: Client, target: str) -> types.User | UserStatus:
+        try:
+            if self.testmode:
+                return random.choices([self.random_user_info(target), self.UserStatus.BANNED, self.UserStatus.BLOCKED, self.UserStatus.UNREACHABLE, self.UserStatus.GENERAL_ERROR,self.UserStatus.USER_NOT_FOUND], weights=[0.9, 0.05, 0.05, 0.05, 0.05,0.05])[0]
+            if target.isnumeric():
+                self.out.info(f"target {target} is a UserID")
+                return client.user_info(target)
+            self.out.info(f"opening {target} page")
+            return client.user_info_by_username(target)
+        except exceptions.UserNotFound:
+            return self.UserStatus.USER_NOT_FOUND
+        except exceptions.PrivateAccount:
+            return self.UserStatus.UNREACHABLE
+        except exceptions.RateLimitError:
+            return self.UserStatus.BLOCKED
+        except (exceptions.ChallengeRequired,exceptions.ChallengeError,exceptions.ChallengeRedirection,exceptions.ChallengeSelfieCaptcha,exceptions.ChallengeUnknownStep,exceptions.RecaptchaChallengeForm):
+            return self.UserStatus.BANNED
+        except Exception as e:
+            return self.UserStatus.GENERAL_ERROR
+
+    def random_media(self, target: types.User) -> types.Media:
+        return types.Media(id="123", user=types.UserShort(pk=target.pk, username=target.username, profile_pic_url=types.HttpUrl("https://www.google.com"), profile_pic_url_hd=types.HttpUrl("https://www.google.com"), is_verified=random.random() > 0.50, is_private=random.random() > 0.50), code="ABC123", taken_at=datetime.now(), like_count=random.randint(0, 1000), comment_count=random.randint(0, 100), pk=800, media_type=1, caption_text="", usertags=[], sponsor_tags=[])
+
+    def get_media_info(self, client: Client, url: str) -> types.Media | MediaStatus:
+        try:
+            pk = client.media_pk_from_url(url)
+            media_info = client.media_info(pk)
+            return media_info
+        except exceptions.UserNotFound:
+            return self.MediaStatus.USER_NOT_FOUND
+        except exceptions.PrivateAccount:
+            return self.MediaStatus.UNREACHABLE
+        except exceptions.RateLimitError:
+            return self.MediaStatus.BLOCKED
+        except (exceptions.ChallengeRequired, exceptions.ChallengeError, exceptions.ChallengeRedirection, exceptions.ChallengeSelfieCaptcha, exceptions.ChallengeUnknownStep, exceptions.RecaptchaChallengeForm):
+            return self.MediaStatus.BANNED
+        except Exception as e:
+            return self.MediaStatus.GENERAL_ERROR
+    def run(self) -> None:
+        client = self.new_client()
+        user = {"username": self.config.username, "password": self.config.password}
+        status = self.login(client, True, user)
+        if status == self.LoginStatus.OK:
+            self.out.info(f"Successfully logged into {self.config.username}")
+        else:
+            self.out.error(f"Login failed, status -> {status.name}")
+            return
+        self.out.debug("Starting extraction process")
+        i = self.config.max_amount
+        if not os.path.exists(self.config.output_path):
+            os.makedirs(self.config.output_path,exist_ok=True)
+        if self.config.target_type == TargetType.FOLLOWERS or self.config.target_type == TargetType.FOLLOWINGS:
+            user_info = self.get_user_info(client, self.config.target)
+            if isinstance(user_info, self.UserStatus):
+                self.out.error(f"Failed to get user info, status -> {user_info.name}")
+                return
+            self.out.debug(f"Getting {self.config.target_type.value} of {user_info.username}")
+            max_id = ""
+            
+            with open(os.path.join(self.config.output_path, f"{user_info.username}-{self.config.max_amount}.txt"), "w") as f, open(os.path.join(self.config.output_path, f"{user_info.username}-{self.config.max_amount}-FULL.csv"), "w") as f2:
+                # set the separator in f2 to be ,
+                f2.write("sep=;\n")
+                f2.write("USERNAME;FULL_NAME;ACCOUNT_PRIVACY;USERID\n")
+                while i > 0:
+                    if self.config.target_type == TargetType.FOLLOWERS:
+                        users,max_id = client.user_followers_v1_chunk(user_info.pk,max_id)
+                        self.out.info("Chunk of users downloaded...")
+                        for user in users:
+                            i -= 1
+                            f.write(user.username+"\n")
+                            f2.write(f"{user.username};{user.full_name};{'PRIVATE' if user.is_private else 'PUBLIC'};{user.pk}")
+                    elif self.config.target_type == TargetType.FOLLOWINGS:
+                        users,max_id = client.user_following_v1_chunk(user_info.pk, max_id)
+                        self.out.info("Chunk of users downloaded...")
+                        for user in users:
+                            i-=1
+                            f.write(user.username+"\n")
+                            f2.write(f"{user.username};{user.full_name};{'PRIVATE' if user.is_private else 'PUBLIC'};{user.pk}")
+        elif self.config.target_type == TargetType.HASHTAGS:
+            max_id=""
+            with open(os.path.join(self.config.output_path, f"{self.config.target}-{self.config.max_amount}.txt"), "w") as f, open(os.path.join(self.config.output_path, f"{self.config.target}-{self.config.max_amount}-FULL.csv"), "w") as f2:
+                f2.write("sep=;\n")
+                f2.write("USERNAME;FULL_NAME;ACCOUNT_PRIVACY;USERID;MEDIA_LIKES;MEDIA_COMMENTS\n")
+                while i > 0:
+                    medias,max_id = client.hashtag_medias_v1_chunk(self.config.target,max_id=max_id)
+                    self.out.info("Chunk of users downloaded...")
+                    for media in medias:
+                        f.write(media.user.username+"\n")
+                        f2.write(f"{media.user.username};{media.user.full_name};{'PRIVATE' if media.user.is_private else 'PUBLIC'};{media.user.pk};{media.like_count};{media.comment_count}")
+                        i-=1
+        elif self.config.target_type == TargetType.LIKES or self.config.target_type == TargetType.COMMENTS:
+            media_info = self.get_media_info(client, self.config.target)
+            with open(os.path.join(self.config.output_path, f"{media_info.code}-{self.config.max_amount}.txt"), "w") as f, open(os.path.join(self.config.output_path, f"{media_info.code}-{self.config.max_amount}-FULL.csv"), "w") as f2:
+                f2.write("sep=;\n")
+                f2.write("USERNAME;FULL_NAME;ACCOUNT_PRIVACY;USERID\n")
+                if self.config.target_type == TargetType.LIKES:
+                    users = client.media_likers(media_info.pk)
+                    self.out.info("Chunk of users downloaded...")
+                    for user in users:
+                        f.write(user.username+"\n")
+                        f2.write(f"{user.username};{user.full_name};{'PRIVATE' if user.is_private else 'PUBLIC'};{user.pk}")
+                elif self.config.target_type == TargetType.COMMENTS:
+                    comments = client.media_comments(media_info.pk, min(media_info.comment_count,self.config.max_amount))
+                    self.out.info("Chunk of users downloaded...")
+                    for comment in comments:
+                        f.write(comment.user.username+"\n")
+                        f2.write(f"{comment.user.username};{comment.user.full_name};{'PRIVATE' if comment.user.is_private else 'PUBLIC'};{comment.user.pk}")
+        self.out.info(f"Done, extracted all {self.config.max_amount} users")
