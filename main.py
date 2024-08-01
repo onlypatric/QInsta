@@ -1,6 +1,7 @@
 from datetime import datetime
 import os
 import re
+from appdata import AppDataPaths
 from typing import Dict, List, Tuple,Union
 from extracomps.ButtonHolder import ButtonHolder
 from extracomps.Tiles import StringTile, Tile, MiniTile
@@ -10,7 +11,7 @@ from PyQt6.QtWidgets import QApplication, QStyleFactory, QAbstractItemView, QMes
 from PyQt6.QtGui import QIntValidator
 import sys
 import json
-from utils.ExtractionParams import ExtractionParams
+from utils.ExtractionParams import ExtractionParams, TargetType
 from utils.configLoader import open_config
 import re
 from extracomps.ConsoleWriter import Incrementer
@@ -91,9 +92,9 @@ class SendingValidator(Vertical):
                     Spacer()
                 ),
                 (
-                    Text("min media likes ", Text.Type.P3),
+                    Text("min media count ", Text.Type.P3),
                     self.min2,
-                    Text("max media likes ", Text.Type.P3),
+                    Text("max media count ", Text.Type.P3),
                     self.max2,
                     Spacer()
                 )
@@ -427,7 +428,7 @@ class MainWindow(Window,Configured):
                         GroupBox(
                             ([Text("Current:"), Text("None").id("q-currentUserList").wrap(True)],
                             [Button("Open").action(self.load_user_list), Spacer(), Button("Export to"), ComboBox(["CSV", "JSON", "EXCEL", "PLAIN TEXT"]).id("q-exportType")],
-                            Text("Max amount of parallel accounts"),SpinBox().minV(1).maxV(10).id("q-parallel")),"Accounts list"),
+                            Text("Max amount of parallel accounts"),SpinBox().minV(1).maxV(10).id("q-parallel").enabled(False)),"Accounts list"),
                         GroupBox(
                             ([Text("Current:"), Text("None").id("q-currentAccsList").wrap(True)],
                             [Button("Open").action(self.load_accounts_list), Spacer(), Button("Export to"), ComboBox(["CSV", "JSON", "EXCEL", "PLAIN TEXT"]).id("q-exportType")]
@@ -568,7 +569,8 @@ class MainWindow(Window,Configured):
                         Button("Logout").id("b-logout").enabled(False)
                     ).expandMin(),
                     Vertical(
-                        Button("Reset counters").action(lambda: Incrementer().resetAll()),
+                        [Button("Reset counters").action(lambda: Incrementer().resetAll()), Button("Clear blacklist").action(
+                            lambda: open(os.path.join(AppDataPaths().get_config_path("QInsta"), "data/blacklist.txt"), "w").close() if os.path.exists(os.path.join(AppDataPaths().get_config_path("QInsta"), "data/blacklist.txt")) else None)],
                         [
                             Tile("Interactions").id("Total"),
                             Tile("Logins").id("Logins")
@@ -630,19 +632,38 @@ class MainWindow(Window,Configured):
         # Setting up the main window properties
         self.setGeometry(100, 100, 800, 600)
         self.setWindowTitle("QInsta")
+    def match_targettype(self, target_type):
+        if target_type == "Followers":
+            return TargetType.FOLLOWERS
+        elif target_type == "Followings":
+            return TargetType.FOLLOWINGS
+        elif target_type == "Hashtags":
+            return TargetType.HASHTAGS
+        elif target_type == "Likes":
+            return TargetType.LIKES
+        elif target_type == "Comments":
+            return TargetType.COMMENTS
+        else:
+            return TargetType.PROFILE
     def start_extraction(self):
+        if not Finder.get("e-amount").text().isdigit():
+            # show the user a warning popup
+            message = "amount must be specified"
+            QMessageBox.warning(self, "Warning", message)
+            return
         ep = ExtractionParams(
             username=Finder.get("e-username").text(),
             password=Finder.get("e-password").text(),
-            target_type=Finder.get("e-targettype").currentText(),
+            target_type=self.match_targettype(Finder.get("e-targettype").currentText()),
             target=Finder.get("e-target").text(),
-            amount=Finder.get("e-amount").text(),
+            max_amount=int(Finder.get("e-amount").text()),
             proxy=Finder.get("e-proxy").text(),
-            save_extra=Finder.get("e-saveextra").isChecked(),
-            save_folder=Finder.get("e-folder").text()
+            save_user_id=Finder.get("e-saveextra").isChecked(),
+            output_path=Finder.get("e-folder").text()
         )
-        ec = ExtractorCore(ep, self.eConsoleWrite)
-        ec.start()
+        self.ec = ExtractorCore(ep, self.eConsoleWrite)
+        self.ec.console.connect(self.eConsoleWrite)
+        self.ec.start()
     def select_extractor_save_folder(self):
         folder = QFileDialog.getExistingDirectory(self, "Select Folder")
         if folder:

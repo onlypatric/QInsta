@@ -7,7 +7,7 @@ from threading import Thread,Lock
 import time
 from typing import Dict, List, Tuple
 from instagrapi import Client,exceptions,types
-from PyQt6.QtCore import QThread, pyqtSignal,pyqtSlot
+from PyQt6.QtCore import QThread, pyqtSignal,pyqtSlot,QObject
 from extracomps.ButtonHolder import ButtonHolder
 from utils.configLoader import Config,Filters
 from utils.ExtractionParams import ExtractionParams,TargetType
@@ -20,7 +20,7 @@ import random
 import json
 from .License import License,LicenseManager,ActionType
 
-TEST_MODE = True
+TEST_MODE = False
 LICENSE_TYPE = License.BASIC
 
 class LogRegister:
@@ -463,7 +463,7 @@ class ProcessUtils:
         return password[0]+("*"*(len(password)-2))+password[-1]
 
     def filter_check(self, filter: Filters, user_info: types.User) -> bool:
-        if self.license_tier == License.Free:
+        if self.license_tier == License.FREE:
             return True
         if filter.minfollowers > user_info.follower_count:
             return False
@@ -484,6 +484,9 @@ class ProcessUtils:
 
     def target_size(self) -> int:
         return len(self.targetlist)
+    
+    def filter_targets(self,blacklist:"Blacklist"):# type: ignore
+        self.targetlist = blacklist.filter_out(self.targetlist)
 
     def acquire_target(self) -> str:
         if len(self.targetlist) > 0:
@@ -602,7 +605,7 @@ class InstaCore:
                     return self.MessageStatus.UNREACHABLE
                 except exceptions.DirectError:
                     return self.MessageStatus.UNREACHABLE
-                except exceptions.RateLimitError:
+                except (exceptions.RateLimitError,exceptions.PleaseWaitFewMinutes):
                     return self.MessageStatus.BLOCKED
                 except (exceptions.ChallengeRequired,exceptions.ChallengeError,exceptions.ChallengeRedirection,exceptions.ChallengeSelfieCaptcha,exceptions.ChallengeUnknownStep,exceptions.RecaptchaChallengeForm):
                     return self.MessageStatus.BANNED
@@ -618,7 +621,7 @@ class InstaCore:
                     return self.MessageStatus.UNREACHABLE
                 except exceptions.DirectError:
                     return self.MessageStatus.UNREACHABLE
-                except exceptions.RateLimitError:
+                except (exceptions.RateLimitError,exceptions.PleaseWaitFewMinutes):
                     return self.MessageStatus.BLOCKED
                 except (exceptions.ChallengeRequired,exceptions.ChallengeError,exceptions.ChallengeRedirection,exceptions.ChallengeSelfieCaptcha,exceptions.ChallengeUnknownStep,exceptions.RecaptchaChallengeForm):
                     return self.MessageStatus.BANNED
@@ -634,7 +637,7 @@ class InstaCore:
                     return self.MessageStatus.UNREACHABLE
                 except exceptions.DirectError:
                     return self.MessageStatus.UNREACHABLE
-                except exceptions.RateLimitError:
+                except (exceptions.RateLimitError,exceptions.PleaseWaitFewMinutes):
                     return self.MessageStatus.BLOCKED
                 except (exceptions.ChallengeRequired,exceptions.ChallengeError,exceptions.ChallengeRedirection,exceptions.ChallengeSelfieCaptcha,exceptions.ChallengeUnknownStep,exceptions.RecaptchaChallengeForm):
                     return self.MessageStatus.BANNED
@@ -646,7 +649,7 @@ class InstaCore:
                         "{name}", str(user_info.full_name)).replace("{followers}", str(user_info.follower_count)).replace("{following}", str(user_info.following_count)), [user_info.pk])
                 except exceptions.DirectError:
                     return self.MessageStatus.UNREACHABLE
-                except exceptions.RateLimitError:
+                except (exceptions.RateLimitError,exceptions.PleaseWaitFewMinutes):
                     return self.MessageStatus.BLOCKED
                 except (exceptions.ChallengeRequired,exceptions.ChallengeError,exceptions.ChallengeRedirection,exceptions.ChallengeSelfieCaptcha,exceptions.ChallengeUnknownStep,exceptions.RecaptchaChallengeForm):
                     return self.MessageStatus.BANNED
@@ -674,7 +677,7 @@ class InstaCore:
             return self.MediaStatus.USER_NOT_FOUND
         except exceptions.PrivateAccount:
             return self.MediaStatus.UNREACHABLE
-        except exceptions.RateLimitError:
+        except (exceptions.RateLimitError,exceptions.PleaseWaitFewMinutes):
             return self.MediaStatus.BLOCKED
         except (exceptions.ChallengeRequired,exceptions.ChallengeError,exceptions.ChallengeRedirection,exceptions.ChallengeSelfieCaptcha,exceptions.ChallengeUnknownStep,exceptions.RecaptchaChallengeForm):
             return self.MediaStatus.BANNED
@@ -702,7 +705,7 @@ class InstaCore:
             return self.MediaStatus.USER_NOT_FOUND
         except exceptions.PrivateAccount:
             return self.MediaStatus.UNREACHABLE
-        except exceptions.RateLimitError:
+        except (exceptions.RateLimitError,exceptions.PleaseWaitFewMinutes):
             return self.MediaStatus.BLOCKED
         except (exceptions.ChallengeRequired,exceptions.ChallengeError,exceptions.ChallengeRedirection,exceptions.ChallengeSelfieCaptcha,exceptions.ChallengeUnknownStep,exceptions.RecaptchaChallengeForm):
             return self.MediaStatus.BANNED
@@ -729,7 +732,7 @@ class InstaCore:
             return self.UserStatus.USER_NOT_FOUND
         except exceptions.PrivateAccount:
             return self.UserStatus.UNREACHABLE
-        except exceptions.RateLimitError:
+        except (exceptions.RateLimitError,exceptions.PleaseWaitFewMinutes):
             return self.UserStatus.BLOCKED
         except (exceptions.ChallengeRequired,exceptions.ChallengeError,exceptions.ChallengeRedirection,exceptions.ChallengeSelfieCaptcha,exceptions.ChallengeUnknownStep,exceptions.RecaptchaChallengeForm):
             return self.UserStatus.BANNED
@@ -750,7 +753,7 @@ class InstaCore:
             return self.UserStatus.USER_NOT_FOUND
         except exceptions.PrivateAccount:
             return self.UserStatus.UNREACHABLE
-        except exceptions.RateLimitError:
+        except (exceptions.RateLimitError,exceptions.PleaseWaitFewMinutes):
             return self.UserStatus.BLOCKED
         except (exceptions.ChallengeRequired,exceptions.ChallengeError,exceptions.ChallengeRedirection,exceptions.ChallengeSelfieCaptcha,exceptions.ChallengeUnknownStep,exceptions.RecaptchaChallengeForm):
             return self.UserStatus.BANNED
@@ -769,7 +772,7 @@ class InstaCore:
             return self.MediaStatus.USER_NOT_FOUND
         except exceptions.PrivateAccount:
             return self.MediaStatus.UNREACHABLE
-        except exceptions.RateLimitError:
+        except (exceptions.RateLimitError,exceptions.PleaseWaitFewMinutes):
             return self.MediaStatus.BLOCKED
         except (exceptions.ChallengeRequired,exceptions.ChallengeError,exceptions.ChallengeRedirection,exceptions.ChallengeSelfieCaptcha,exceptions.ChallengeUnknownStep,exceptions.RecaptchaChallengeForm):
             return self.MediaStatus.BANNED
@@ -817,7 +820,7 @@ class InstaCore:
         except (exceptions.ChallengeError,exceptions.ChallengeRedirection,exceptions.ChallengeRequired,exceptions.ChallengeSelfieCaptcha,exceptions.ChallengeUnknownStep,exceptions.RecaptchaChallengeForm):
             self.logLogin(self.LoginStatus.BANNED, credentials['username'], credentials["password"])
             return self.LoginStatus.BANNED
-        except exceptions.RateLimitError:
+        except (exceptions.RateLimitError,exceptions.PleaseWaitFewMinutes):
             self.logLogin(self.LoginStatus.BLOCKED, credentials['username'], credentials["password"])
             self.out.error("Rate limit reached, please try again later.")
             return self.LoginStatus.BLOCKED
@@ -830,6 +833,28 @@ class InstaCore:
             traceback.print_exc()
             self.logLogin(self.LoginStatus.GENERAL_ERROR, credentials['username'], credentials["password"])
             return self.LoginStatus.GENERAL_ERROR
+
+
+class Blacklist:
+    def __init__(self, path: str):
+        self.path = path
+        self.blacklist = self._load_blacklist()
+
+    def _load_blacklist(self):
+        with open(self.path, "r") as file:
+            return set(file.read().splitlines())
+
+    def add_user(self, username: str):
+        if username not in self.blacklist:
+            with open(self.path, "a") as file:
+                file.write(username + "\n")
+            self.blacklist.add(username)
+
+    def filter_out(self, usernames: list[str]):
+        return [x for x in usernames if x not in self.blacklist]
+
+    def reload_blacklist(self):
+        self.blacklist = self._load_blacklist()
 class ProcessCore(ProcessUtils,InstaCore):
     userlist: List[Dict[str, str]]
     targetlist = List[str]
@@ -847,6 +872,7 @@ class ProcessCore(ProcessUtils,InstaCore):
         self.parent=out
         licpath = os.path.join(path.get_config_path("QInsta", create=True), "data")
         if not os.path.exists(licpath):os.makedirs(licpath,exist_ok=True)
+        self.blacklist_path = os.path.join(licpath, "blacklist.txt")
         self.license_tier = self.parent.licenseType
         self.license_manager = LicenseManager(os.path.join(licpath,"data.json"),self.license_tier)
     
@@ -866,6 +892,8 @@ class ProcessCore(ProcessUtils,InstaCore):
             os.makedirs(self.cookiepath)
         client.dump_settings(os.path.join(self.cookiepath, f"{username}.json"))
     def run(self):
+        bl = Blacklist(self.blacklist_path)
+        self.filter_targets(bl) # filter out old people that have been already interacted with
         # run until targets have been finished
         while self.target_size()>0:
             client = self.new_client() # create a new instagram connection
@@ -1150,8 +1178,7 @@ class ProcessCore(ProcessUtils,InstaCore):
 # ------------------------------------------------------------------ END CHECK FOR STOP SIGNAL
 
 
-class ExtractorCore(QThread,CodeConnected):
-    out: ConsoleConnected
+class ExtractorCore(QThread, CodeConnected, ConsoleConnected):
     testmode: bool = TEST_MODE
     request_input_code = pyqtSignal(str, str, Code)
     code = Code()
@@ -1180,7 +1207,8 @@ class ExtractorCore(QThread,CodeConnected):
         BANNED = 3
         BLOCKED = 4
         UNREACHABLE = 5
-    def __init__(self, config:ExtractionParams, out: ConsoleConnected,testmode: bool = False) -> None:
+    def __init__(self, config:ExtractionParams,testmode: bool = False) -> None:
+        QThread.__init__(self)
         self.config = config
         self.appdatapath = AppDataPaths("EQInsta")
         self.cookiepath = self.appdatapath.get_config_path("cookies", create=True)
@@ -1189,9 +1217,9 @@ class ExtractorCore(QThread,CodeConnected):
         client = Client()
         client.challenge_code_handler = self.obtain_code
         if self.config.proxy!="":
-            self.out.debug("Using proxy "+self.config.proxy)
+            self.debug("Using proxy "+self.config.proxy)
             client.set_proxy(self.config.proxy)
-        self.out.debug("Initalized new Instagram Instance")
+        self.debug("Initalized new Instagram Instance")
         return client
 
     def save_cookies(self, client: Client, username: str):
@@ -1212,7 +1240,7 @@ class ExtractorCore(QThread,CodeConnected):
         credentials = user
         try:
             if self.check_cookies_exist(credentials["username"]) and not self.testmode:
-                self.out.info("Found cookies for "+credentials["username"])
+                self.info("Found cookies for "+credentials["username"])
                 cookies = self.get_cookies(credentials["username"])
                 client.set_settings(cookies)
                 try:
@@ -1224,7 +1252,7 @@ class ExtractorCore(QThread,CodeConnected):
                         pass
                     self.remove_cookies(credentials["username"])
                     if attempt_twice:
-                        self.out.warning(
+                        self.warning(
                             "Failed to login, removing cookies and trying again...")
                         return self.login(client, False, credentials)
                 return self.LoginStatus.OK
@@ -1243,11 +1271,11 @@ class ExtractorCore(QThread,CodeConnected):
             return self.LoginStatus.LOGIN_REQUIRED
         except (exceptions.ChallengeError, exceptions.ChallengeRedirection, exceptions.ChallengeRequired, exceptions.ChallengeSelfieCaptcha, exceptions.ChallengeUnknownStep, exceptions.RecaptchaChallengeForm):
             return self.LoginStatus.BANNED
-        except exceptions.RateLimitError:
-            self.out.error("Rate limit reached, please try again later.")
+        except (exceptions.RateLimitError,exceptions.PleaseWaitFewMinutes):
+            self.error("Rate limit reached, please try again later.")
             return self.LoginStatus.BLOCKED
         except exceptions.ProxyAddressIsBlocked:
-            self.out.error(
+            self.error(
                 "IP address is blocked, if you are using a proxy or VPN make sure it is not shared.")
             return self.LoginStatus.BLOCKED
         except Exception as e:
@@ -1261,15 +1289,15 @@ class ExtractorCore(QThread,CodeConnected):
             if self.testmode:
                 return random.choices([self.random_user_info(target), self.UserStatus.BANNED, self.UserStatus.BLOCKED, self.UserStatus.UNREACHABLE, self.UserStatus.GENERAL_ERROR,self.UserStatus.USER_NOT_FOUND], weights=[0.9, 0.05, 0.05, 0.05, 0.05,0.05])[0]
             if target.isnumeric():
-                self.out.info(f"target {target} is a UserID")
+                self.info(f"target {target} is a UserID")
                 return client.user_info(target)
-            self.out.info(f"opening {target} page")
+            self.info(f"opening {target} page")
             return client.user_info_by_username(target)
         except exceptions.UserNotFound:
             return self.UserStatus.USER_NOT_FOUND
         except exceptions.PrivateAccount:
             return self.UserStatus.UNREACHABLE
-        except exceptions.RateLimitError:
+        except (exceptions.RateLimitError,exceptions.PleaseWaitFewMinutes):
             return self.UserStatus.BLOCKED
         except (exceptions.ChallengeRequired,exceptions.ChallengeError,exceptions.ChallengeRedirection,exceptions.ChallengeSelfieCaptcha,exceptions.ChallengeUnknownStep,exceptions.RecaptchaChallengeForm):
             return self.UserStatus.BANNED
@@ -1288,79 +1316,100 @@ class ExtractorCore(QThread,CodeConnected):
             return self.MediaStatus.USER_NOT_FOUND
         except exceptions.PrivateAccount:
             return self.MediaStatus.UNREACHABLE
-        except exceptions.RateLimitError:
+        except (exceptions.RateLimitError,exceptions.PleaseWaitFewMinutes):
             return self.MediaStatus.BLOCKED
         except (exceptions.ChallengeRequired, exceptions.ChallengeError, exceptions.ChallengeRedirection, exceptions.ChallengeSelfieCaptcha, exceptions.ChallengeUnknownStep, exceptions.RecaptchaChallengeForm):
             return self.MediaStatus.BANNED
         except Exception as e:
             return self.MediaStatus.GENERAL_ERROR
     def run(self) -> None:
-        client = self.new_client()
-        user = {"username": self.config.username, "password": self.config.password}
-        status = self.login(client, True, user)
-        if status == self.LoginStatus.OK:
-            self.out.info(f"Successfully logged into {self.config.username}")
-        else:
-            self.out.error(f"Login failed, status -> {status.name}")
-            return
-        self.out.debug("Starting extraction process")
-        i = self.config.max_amount
-        if not os.path.exists(self.config.output_path):
-            os.makedirs(self.config.output_path,exist_ok=True)
-        if self.config.target_type == TargetType.FOLLOWERS or self.config.target_type == TargetType.FOLLOWINGS:
-            user_info = self.get_user_info(client, self.config.target)
-            if isinstance(user_info, self.UserStatus):
-                self.out.error(f"Failed to get user info, status -> {user_info.name}")
+        try:
+            client = self.new_client()
+            user = {"username": self.config.username, "password": self.config.password}
+            self.debug(f"Logging in as {self.config.username}")
+            status = self.login(client, True, user)
+            if status == self.LoginStatus.OK:
+                self.info(f"Successfully logged into {self.config.username}")
+            else:
+                self.error(f"Login failed, status -> {status.name}")
                 return
-            self.out.debug(f"Getting {self.config.target_type.value} of {user_info.username}")
-            max_id = ""
-            
-            with open(os.path.join(self.config.output_path, f"{user_info.username}-{self.config.max_amount}.txt"), "w") as f, open(os.path.join(self.config.output_path, f"{user_info.username}-{self.config.max_amount}-FULL.csv"), "w") as f2:
-                # set the separator in f2 to be ,
-                f2.write("sep=;\n")
-                f2.write("USERNAME;FULL_NAME;ACCOUNT_PRIVACY;USERID\n")
-                while i > 0:
-                    if self.config.target_type == TargetType.FOLLOWERS:
-                        users,max_id = client.user_followers_v1_chunk(user_info.pk,max_id)
-                        self.out.info("Chunk of users downloaded...")
-                        for user in users:
-                            i -= 1
-                            f.write(user.username+"\n")
-                            f2.write(f"{user.username};{user.full_name};{'PRIVATE' if user.is_private else 'PUBLIC'};{user.pk}")
-                    elif self.config.target_type == TargetType.FOLLOWINGS:
-                        users,max_id = client.user_following_v1_chunk(user_info.pk, max_id)
-                        self.out.info("Chunk of users downloaded...")
-                        for user in users:
+            self.debug("Starting extraction process")
+            i = self.config.max_amount
+            if not os.path.exists(self.config.output_path):
+                os.makedirs(self.config.output_path,exist_ok=True)
+            if self.config.target_type == TargetType.FOLLOWERS or self.config.target_type == TargetType.FOLLOWINGS:
+                user_info = self.get_user_info(client, self.config.target)
+                if isinstance(user_info, self.UserStatus):
+                    self.error(f"Failed to get user info, status -> {user_info.name}")
+                    return
+                self.debug(f"Getting {self.config.target_type.value} of {user_info.username}")
+                max_id = ""
+                
+                with open(os.path.join(self.config.output_path, f"{user_info.username}-{self.config.max_amount}.txt"), "w") as f, open(os.path.join(self.config.output_path, f"{user_info.username}-{self.config.max_amount}-FULL.csv"), "w") as f2:
+                    # set the separator in f2 to be ,
+                    f2.write("sep=;\n")
+                    f2.write("USERNAME;FULL_NAME;ACCOUNT_PRIVACY;USERID\n")
+                    while i > 0:
+                        if self.config.target_type == TargetType.FOLLOWERS:
+                            try:users,max_id = client.user_followers_gql_chunk(user_info.pk,max_id)
+                            except:
+                                self.warning(
+                                    "GQL API block, waiting for a random amount of time")
+                                time.sleep(random.random()*10)
+                                users,max_id = client.user_followers_v1_chunk(user_info.pk,max_id)
+                            self.info("Chunk of users downloaded, max_id:")
+                            self.info(max_id)
+                            for user in users:
+                                i -= 1
+                                f.write(user.username+"\n")
+                                f2.write(f"{user.username};{user.full_name};{'PRIVATE' if user.is_private else 'PUBLIC'};{user.pk}\n")
+                        elif self.config.target_type == TargetType.FOLLOWINGS:
+                            time.sleep(random.random()*5)
+                            users,max_id = client.user_following_v1_chunk(user_info.pk, max_id)
+                            self.info("Chunk of users downloaded, max_id:")
+                            self.info(max_id)
+                            for user in users:
+                                i-=1
+                                f.write(user.username+"\n")
+                                f2.write(f"{user.username};{user.full_name};{'PRIVATE' if user.is_private else 'PUBLIC'};{user.pk}\n")
+            elif self.config.target_type == TargetType.HASHTAGS:
+                max_id=""
+                with open(os.path.join(self.config.output_path, f"{self.config.target}-{self.config.max_amount}.txt"), "w") as f, open(os.path.join(self.config.output_path, f"{self.config.target}-{self.config.max_amount}-FULL.csv"), "w") as f2:
+                    f2.write("sep=;\n")
+                    f2.write("USERNAME;FULL_NAME;ACCOUNT_PRIVACY;USERID;MEDIA_LIKES;MEDIA_COMMENTS\n")
+                    while i > 0:
+                        try:
+                            client.hashtag_medias_a1_chunk(
+                                self.config.target, max_id=max_id)
+                        except:
+                            self.warning("A1 API block, waiting for a random amount of time")
+                            time.sleep(random.random()*10)
+                            medias,max_id = client.hashtag_medias_v1_chunk(self.config.target,max_id=max_id)
+                        self.info("Chunk of users downloaded, max_id:")
+                        self.info(max_id)
+                        for media in medias:
+                            f.write(media.user.username+"\n")
+                            f2.write(f"{media.user.username};{media.user.full_name};{'PRIVATE' if media.user.is_private else 'PUBLIC'};{media.user.pk};{media.like_count};{media.comment_count}\n")
                             i-=1
+            elif self.config.target_type == TargetType.LIKES or self.config.target_type == TargetType.COMMENTS:
+                media_info = self.get_media_info(client, self.config.target)
+                with open(os.path.join(self.config.output_path, f"{media_info.code}-{self.config.max_amount}.txt"), "w") as f, open(os.path.join(self.config.output_path, f"{media_info.code}-{self.config.max_amount}-FULL.csv"), "w") as f2:
+                    f2.write("sep=;\n")
+                    f2.write("USERNAME;FULL_NAME;ACCOUNT_PRIVACY;USERID\n")
+                    if self.config.target_type == TargetType.LIKES:
+                        users = client.media_likers(media_info.pk)
+                        self.info("Chunk of users downloaded, max_id:")
+                        self.info(max_id)
+                        for user in users:
                             f.write(user.username+"\n")
-                            f2.write(f"{user.username};{user.full_name};{'PRIVATE' if user.is_private else 'PUBLIC'};{user.pk}")
-        elif self.config.target_type == TargetType.HASHTAGS:
-            max_id=""
-            with open(os.path.join(self.config.output_path, f"{self.config.target}-{self.config.max_amount}.txt"), "w") as f, open(os.path.join(self.config.output_path, f"{self.config.target}-{self.config.max_amount}-FULL.csv"), "w") as f2:
-                f2.write("sep=;\n")
-                f2.write("USERNAME;FULL_NAME;ACCOUNT_PRIVACY;USERID;MEDIA_LIKES;MEDIA_COMMENTS\n")
-                while i > 0:
-                    medias,max_id = client.hashtag_medias_v1_chunk(self.config.target,max_id=max_id)
-                    self.out.info("Chunk of users downloaded...")
-                    for media in medias:
-                        f.write(media.user.username+"\n")
-                        f2.write(f"{media.user.username};{media.user.full_name};{'PRIVATE' if media.user.is_private else 'PUBLIC'};{media.user.pk};{media.like_count};{media.comment_count}")
-                        i-=1
-        elif self.config.target_type == TargetType.LIKES or self.config.target_type == TargetType.COMMENTS:
-            media_info = self.get_media_info(client, self.config.target)
-            with open(os.path.join(self.config.output_path, f"{media_info.code}-{self.config.max_amount}.txt"), "w") as f, open(os.path.join(self.config.output_path, f"{media_info.code}-{self.config.max_amount}-FULL.csv"), "w") as f2:
-                f2.write("sep=;\n")
-                f2.write("USERNAME;FULL_NAME;ACCOUNT_PRIVACY;USERID\n")
-                if self.config.target_type == TargetType.LIKES:
-                    users = client.media_likers(media_info.pk)
-                    self.out.info("Chunk of users downloaded...")
-                    for user in users:
-                        f.write(user.username+"\n")
-                        f2.write(f"{user.username};{user.full_name};{'PRIVATE' if user.is_private else 'PUBLIC'};{user.pk}")
-                elif self.config.target_type == TargetType.COMMENTS:
-                    comments = client.media_comments(media_info.pk, min(media_info.comment_count,self.config.max_amount))
-                    self.out.info("Chunk of users downloaded...")
-                    for comment in comments:
-                        f.write(comment.user.username+"\n")
-                        f2.write(f"{comment.user.username};{comment.user.full_name};{'PRIVATE' if comment.user.is_private else 'PUBLIC'};{comment.user.pk}")
-        self.out.info(f"Done, extracted all {self.config.max_amount} users")
+                            f2.write(f"{user.username};{user.full_name};{'PRIVATE' if user.is_private else 'PUBLIC'};{user.pk}\n")
+                    elif self.config.target_type == TargetType.COMMENTS:
+                        comments = client.media_comments(media_info.pk, min(media_info.comment_count,self.config.max_amount))
+                        self.info("Chunk of users downloaded, max_id:")
+                        self.info(max_id)
+                        for comment in comments:
+                            f.write(comment.user.username+"\n")
+                            f2.write(f"{comment.user.username};{comment.user.full_name};{'PRIVATE' if comment.user.is_private else 'PUBLIC'};{comment.user.pk}\n")
+            self.info(f"Done, extracted all {self.config.max_amount} users")
+        except Exception as e:
+            print(e)
