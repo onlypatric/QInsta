@@ -5,6 +5,7 @@ from pathlib import Path
 import re
 from threading import Thread,Lock
 import time
+import traceback
 from typing import Dict, List, Tuple
 from instagrapi import Client,exceptions,types
 from PyQt6.QtCore import QThread, pyqtSignal,pyqtSlot,QObject
@@ -605,6 +606,9 @@ class InstaCore:
             return random.choices([self.MessageStatus.OK, self.MessageStatus.GENERAL_ERROR, self.MessageStatus.USER_NOT_FOUND, self.MessageStatus.BANNED, self.MessageStatus.BLOCKED, self.MessageStatus.UNREACHABLE, self.MessageStatus.MEDIA_NOT_FOUND], weights=[0.9, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])[0]
         self.sleep(self.config.message.timebeforemessage)
         for msg in msgcollection:
+            # verify wether the "msg" contains any letter or number
+            if not any(char.isalnum() for char in msg):
+                continue
             if msg.startswith("@"):
                 try:
                     client.direct_profile_share(client.user_info_by_username(
@@ -758,7 +762,7 @@ class InstaCore:
                 self.out.info(f"target {target} is a UserID")
                 return client.user_info_v1(target)
             try:
-                info1 = client.search_users_v1(target,1)[0]
+                info1 = client.search_users_v1(target,10)[0]
                 if info1.username==target:
                     self.out.info(f"Quick search found {target}")
                     return client.user_info_v1(info1)
@@ -808,6 +812,7 @@ class InstaCore:
                 client.set_settings(cookies)
                 try:
                     client.new_feed_exist()
+                    client.user_info_by_username_v1("instagram")
                     self.logLogin(self.LoginStatus.OK,credentials['username'],credentials["password"])
                 except:
                     try:client.logout()
@@ -848,7 +853,6 @@ class InstaCore:
             return self.LoginStatus.BLOCKED
         except Exception as e:
             import traceback
-            traceback.print_exc()
             self.logLogin(self.LoginStatus.GENERAL_ERROR, credentials['username'], credentials["password"])
             return self.LoginStatus.GENERAL_ERROR
 
@@ -933,6 +937,7 @@ class ProcessCore(ProcessUtils,InstaCore):
             self.sleep(self.config.timebeforelogin)
             creds = self.acquire_user() # obtain credentials
             self.out.debug("Logging in to "+str(creds))
+            username = creds["username"]
             status = self.login(client,attempt_twice=self.config.saveParams.twice_attempt,user=creds) # login using the credentials
             self.parent.login.emit()
             if status != self.LoginStatus.OK: # check if status is not "OK"
@@ -997,6 +1002,7 @@ class ProcessCore(ProcessUtils,InstaCore):
                             break
                         case self.UserStatus.GENERAL_ERROR:
                             self.out.error(f"Loading user {target} caused an error")
+                            self.remove_cookies(creds["username"])
                             break
                     continue
                 else:
@@ -1302,8 +1308,6 @@ class ExtractorCore(QThread, CodeConnected, ConsoleConnected):
                 "IP address is blocked, if you are using a proxy or VPN make sure it is not shared.")
             return self.LoginStatus.BLOCKED
         except Exception as e:
-            import traceback
-            traceback.print_exc()
             return self.LoginStatus.GENERAL_ERROR
     def random_user_info(self,target:str):
         return types.User(pk="123", username=target, full_name=target, is_private=True, profile_pic_url=types.HttpUrl("https://www.google.com"), profile_pic_url_hd=types.HttpUrl("https://www.google.com"), is_verified=random.random() > 0.50, media_count=random.randint(0, 100), follower_count=random.randint(0, 10000), following_count=random.randint(0, 1000), is_business=False)
