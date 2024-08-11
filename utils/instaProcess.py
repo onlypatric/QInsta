@@ -22,6 +22,12 @@ from .License import License,LicenseManager,ActionType
 
 TEST_MODE = False
 LICENSE_TYPE = License.PRO
+UAS = [
+    "Instagram 323.0.0.35.65 Android (34/14; 480dpi; 1080x2290; realme; RMX3782; RE5C6CL1; mt6835; en_GB; 578014094)",
+    "Instagram 317.0.0.34.109 Android (30/11; 480dpi; 1080x2098; TCL; T790Y; Seattle; qcom; it_IT; 563459864)",
+    "Instagram 318.0.0.30.110 Android (34/14; 460dpi; 1080x2094; Google/google; Pixel 7 Pro; cheetah; cheetah; en_US; 566040990)",
+    "Instagram 317.0.0.34.109 Android (31/12; 440dpi; 1080x2180; Xiaomi; M2007J3SG; apollo; qcom; de_DE; 563459864)",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 16_5_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/20F75 Instagram 341.0.1.29.93 (iPhone12,1; iOS 16_5_1;"]
 
 class LogRegister:
     def __init__(self,name:str) -> None:
@@ -751,15 +757,14 @@ class InstaCore:
             if target.isnumeric():
                 self.out.info(f"target {target} is a UserID")
                 return client.user_info_v1(target)
-            self.out.info(f"opening {target} page")
             try:
                 info1 = client.search_users_v1(target,1)[0]
-                print(info1.username)
                 if info1.username==target:
-                    return info1
+                    self.out.info(f"Quick search found {target}")
+                    return client.user_info_v1(info1)
+                self.out.info(f"Opening {target}'s page")
                 return client.user_info_by_username_v1(target)
             except Exception as e:
-                print(e)
                 return client.user_info_by_username_v1(target)
         except exceptions.UserNotFound:
             return self.UserStatus.USER_NOT_FOUND
@@ -895,6 +900,7 @@ class ProcessCore(ProcessUtils,InstaCore):
     def new_client(self) -> Client:
         proxy = None
         client = Client()
+        client.set_user_agent(random.choice(UAS))
         client.challenge_code_handler = self.parent.obtain_code if self.config.saveParams.ask_for_code else lambda x,y: "".join(random.choices("1234567890", k=6))
         proxy = self.acquire_proxy()
         if proxy:
@@ -1010,6 +1016,7 @@ class ProcessCore(ProcessUtils,InstaCore):
                         self.anyLog(self.UserStatus.GENERAL_ERROR, target)
                         i-=1
                         continue
+                bl.add_user(target)
 # ------------------------------------------------------------------ END CHECK SENDING PARAMETER
 # ------------------------------------------------------------------ LOAD MEDIA
                 if self.config.like.enabled or self.config.comment.enabled:
