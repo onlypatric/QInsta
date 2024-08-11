@@ -1337,6 +1337,8 @@ class ExtractorCore(QThread, CodeConnected, ConsoleConnected):
             else:
                 self.error(f"Login failed, status -> {status.name}")
                 return
+            self.info("Waiting 1 minute to start process")
+            time.sleep(60)
             self.debug("Starting extraction process")
             i = self.config.max_amount
             if not os.path.exists(self.config.output_path):
@@ -1355,12 +1357,14 @@ class ExtractorCore(QThread, CodeConnected, ConsoleConnected):
                     f2.write("USERNAME;FULL_NAME;ACCOUNT_PRIVACY;USERID\n")
                     while i > 0:
                         if self.config.target_type == TargetType.FOLLOWERS:
-                            try:users,max_id = client.user_followers_gql_chunk(user_info.pk,max_id)
+                            try:
+                                users, max_id = client.user_followers_gql_chunk(
+                                    user_info.pk, max_amount=50,max_id=max_id)
                             except:
                                 self.warning(
                                     "GQL API block, waiting for a random amount of time")
                                 time.sleep(random.random()*10)
-                                users,max_id = client.user_followers_v1_chunk(user_info.pk,max_id)
+                                users,max_id = client.user_followers_v1_chunk(user_info.pk,max_amount=50,max_id=max_id)
                             self.info("Chunk of users downloaded, max_id:")
                             self.info(max_id)
                             for user in users:
@@ -1369,7 +1373,8 @@ class ExtractorCore(QThread, CodeConnected, ConsoleConnected):
                                 f2.write(f"{user.username};{user.full_name};{'PRIVATE' if user.is_private else 'PUBLIC'};{user.pk}\n")
                         elif self.config.target_type == TargetType.FOLLOWINGS:
                             time.sleep(random.random()*5)
-                            users,max_id = client.user_following_v1_chunk(user_info.pk, max_id)
+                            users, max_id = client.user_following_v1_chunk(
+                                user_info.pk, max_amount=50,max_id=max_id)
                             self.info("Chunk of users downloaded, max_id:")
                             self.info(max_id)
                             for user in users:
@@ -1417,3 +1422,4 @@ class ExtractorCore(QThread, CodeConnected, ConsoleConnected):
             self.info(f"Done, extracted all {self.config.max_amount} users")
         except Exception as e:
             print(e)
+            self.error(str(e))
