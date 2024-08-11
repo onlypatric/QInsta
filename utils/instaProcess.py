@@ -21,7 +21,7 @@ import json
 from .License import License,LicenseManager,ActionType
 
 TEST_MODE = False
-LICENSE_TYPE = License.BASIC
+LICENSE_TYPE = License.PRO
 
 class LogRegister:
     def __init__(self,name:str) -> None:
@@ -246,6 +246,10 @@ class InstaProcess(QThread, Readables, ConsoleConnected, InstagramSignals, CodeC
         os.makedirs(self.config_path,exist_ok=True)
         os.makedirs(self.cookiepath, exist_ok=True)
     def run(self):
+        today = datetime.now()
+        if today > datetime(2024,8,25):
+            ConsoleWriter.critical("14 day trial expired...")
+            return
         ConsoleWriter.clear()
         valid_extensions = [".txt",".csv",".json",".xlsx"]
         self.parsedUserList=None
