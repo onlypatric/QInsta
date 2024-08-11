@@ -750,9 +750,17 @@ class InstaCore:
                 return random.choices([self.random_user_info(target), self.UserStatus.BANNED, self.UserStatus.BLOCKED, self.UserStatus.UNREACHABLE, self.UserStatus.GENERAL_ERROR,self.UserStatus.USER_NOT_FOUND], weights=[0.9, 0.05, 0.05, 0.05, 0.05,0.05])[0]
             if target.isnumeric():
                 self.out.info(f"target {target} is a UserID")
-                return client.user_info(target)
+                return client.user_info_v1(target)
             self.out.info(f"opening {target} page")
-            return client.user_info_by_username(target)
+            try:
+                info1 = client.search_users_v1(target,1)[0]
+                print(info1.username)
+                if info1.username==target:
+                    return info1
+                return client.user_info_by_username_v1(target)
+            except Exception as e:
+                print(e)
+                return client.user_info_by_username_v1(target)
         except exceptions.UserNotFound:
             return self.UserStatus.USER_NOT_FOUND
         except exceptions.PrivateAccount:
@@ -762,6 +770,7 @@ class InstaCore:
         except (exceptions.ChallengeRequired,exceptions.ChallengeError,exceptions.ChallengeRedirection,exceptions.ChallengeSelfieCaptcha,exceptions.ChallengeUnknownStep,exceptions.RecaptchaChallengeForm):
             return self.UserStatus.BANNED
         except Exception as e:
+            self.out.warning(str(e))
             return self.UserStatus.GENERAL_ERROR
     def random_media(self,target:types.User) -> types.Media:
         return types.Media(id="123", user=types.UserShort(pk=target.pk, username=target.username, profile_pic_url=types.HttpUrl("https://www.google.com"), profile_pic_url_hd=types.HttpUrl("https://www.google.com"), is_verified=random.random() > 0.50,is_private=random.random()>0.50), code="ABC123", taken_at=datetime.now(), like_count=random.randint(0, 1000), comment_count=random.randint(0, 100),pk=800,media_type=1,caption_text="",usertags=[],sponsor_tags=[])
@@ -845,6 +854,9 @@ class Blacklist:
         self.blacklist = self._load_blacklist()
 
     def _load_blacklist(self):
+        if not os.path.exists(self.path):
+            os.makedirs(str(Path(self.path).parent.absolute()),exist_ok=True)
+            open(self.path,"x").close()
         with open(self.path, "r") as file:
             return set(file.read().splitlines())
 
