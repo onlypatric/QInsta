@@ -1,0 +1,109 @@
+{
+    "user_list": "/Users/patric/Developer/2024/Python/QInsta/configurations/accounts-real.txt",
+    "parallel": 1,
+    "accounts_list": "/Users/patric/Developer/2024/Python/QInsta/configurations/targets-real.txt",
+    "exportType": 0,
+    "usersforeachaccount": 10,
+    "proxies": [],
+    "message": {
+        "enabled": true,
+        "text": [
+            "Hello {username}, you have {followers} followers and {following} followings, heres someone you might know: {@instagram}\n",
+            "Hi! {name}, how are you?"
+        ],
+        "enabled_filters": false,
+        "filters": {
+            "frequency": 1,
+            "minfollowers": 0,
+            "maxfollowers": 0,
+            "minmedia": 0,
+            "maxmedia": 0
+        },
+        "timebeforemessage": 2,
+        "timeaftermessage": 2
+    },
+    "comment": {
+        "enabled": true,
+        "text": [
+            ""
+        ],
+        "enabled_filters": false,
+        "filters": {
+            "frequency": 1,
+            "minfollowers": 0,
+            "maxfollowers": 0,
+            "minmedia": 0,
+            "maxmedia": 0
+        },
+        "timebeforecomment": 0,
+        "timeaftercomment": 0
+    },
+    "like": {
+        "enabled": false,
+        "enabled_filters": false,
+        "filters": {
+            "frequency": 1,
+            "minfollowers": 0,
+            "maxfollowers": 0,
+            "minmedia": 0,
+            "maxmedia": 0
+        },
+        "timebeforelike": 0,
+        "timeafterlike": 0
+    },
+    "follow": {
+        "enabled": true,
+        "enabled_filters": true,
+        "filters": {
+            "frequency": 1,
+            "minfollowers": 1,
+            "maxfollowers": 0,
+            "minmedia": 0,
+            "maxmedia": 0
+        },
+        "timebeforefollow": 1,
+        "timeafterfollow": 5
+    },
+    "otherTimings": {
+        "loadinguser": {
+            "before": 0,
+            "after": 0
+        },
+        "accounttask": {
+            "before": 0,
+            "after": 0
+        },
+        "blockban": {
+            "block": 0,
+            "ban": 0
+        },
+        "logout": {
+            "before": 0,
+            "after": 0
+        }
+    },
+    "saveParams": {
+        "toJson": false,
+        "toCSV": false,
+        "blocks": false,
+        "bans": false,
+        "twiceAttempt": false,
+        "askForCode": true,
+        "saveCookies": true,
+        "saveSession": true
+    },
+    "sendingParams": {
+        "onlytoverified": false,
+        "onlytononverified": false,
+        "sendtoall": true
+    },
+    "device": {
+        "userAgent": {
+            "iphone": false,
+            "android": true
+        },
+        "userAgentOrder": 0
+    },
+    "timebeforelogin": 10,
+    "timeafterlogin": 5
+}
