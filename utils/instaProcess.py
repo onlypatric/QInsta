@@ -623,7 +623,7 @@ class InstaCore:
                     return self.MessageStatus.BLOCKED
                 except (exceptions.ChallengeRequired,exceptions.ChallengeError,exceptions.ChallengeRedirection,exceptions.ChallengeSelfieCaptcha,exceptions.ChallengeUnknownStep,exceptions.RecaptchaChallengeForm):
                     return self.MessageStatus.BANNED
-                except (exceptions.ClientForbiddenError,exceptions.GenericRequestError):
+                except (exceptions.ClientForbiddenError,exceptions.GenericRequestError,Exception):
                     return self.MessageStatus.GENERAL_ERROR
             elif msg.startswith("reel:"):
                 try:
@@ -639,7 +639,7 @@ class InstaCore:
                     return self.MessageStatus.BLOCKED
                 except (exceptions.ChallengeRequired,exceptions.ChallengeError,exceptions.ChallengeRedirection,exceptions.ChallengeSelfieCaptcha,exceptions.ChallengeUnknownStep,exceptions.RecaptchaChallengeForm):
                     return self.MessageStatus.BANNED
-                except (exceptions.ClientForbiddenError, exceptions.GenericRequestError):
+                except (exceptions.ClientForbiddenError, exceptions.GenericRequestError,Exception):
                     return self.MessageStatus.GENERAL_ERROR
             elif msg.startswith("post:"):
                 try:
@@ -655,7 +655,7 @@ class InstaCore:
                     return self.MessageStatus.BLOCKED
                 except (exceptions.ChallengeRequired,exceptions.ChallengeError,exceptions.ChallengeRedirection,exceptions.ChallengeSelfieCaptcha,exceptions.ChallengeUnknownStep,exceptions.RecaptchaChallengeForm):
                     return self.MessageStatus.BANNED
-                except (exceptions.ClientForbiddenError, exceptions.GenericRequestError):
+                except (exceptions.ClientForbiddenError, exceptions.GenericRequestError,Exception):
                     return self.MessageStatus.GENERAL_ERROR
             else:
                 try:
@@ -667,7 +667,7 @@ class InstaCore:
                     return self.MessageStatus.BLOCKED
                 except (exceptions.ChallengeRequired,exceptions.ChallengeError,exceptions.ChallengeRedirection,exceptions.ChallengeSelfieCaptcha,exceptions.ChallengeUnknownStep,exceptions.RecaptchaChallengeForm):
                     return self.MessageStatus.BANNED
-                except (exceptions.ClientForbiddenError, exceptions.GenericRequestError):
+                except (exceptions.ClientForbiddenError, exceptions.GenericRequestError,Exception):
                     return self.MessageStatus.GENERAL_ERROR
         self.sleep(self.config.message.timeaftermessage)
         return self.MessageStatus.OK
@@ -965,204 +965,26 @@ class ProcessCore(ProcessUtils,InstaCore):
                 return
 # ------------------------------------------------------------------ END CHECK FOR STOP SIGNAL
             i = 0
-            while i < self.config.usersforeachaccount: # loop that goes from 0 to self.config.usersforeachaccount
-# ------------------------------------------------------------------ ACQUIRE TARGET
-                target = self.acquire_target() # obtain target
-                if self.license_manager.increment_interaction():
-                    self.out.warning("License limit reached, stopping process")
-                    return
-                i += 1
-                if target is None:
-                    self.out.debug(f"All targets have been interacted with")
-                    self.out.debug("Stopping process...")
-                    break
-# ------------------------------------------------------------------ END ACQUIRE TARGET
-# ------------------------------------------------------------------ ACQUIRE USER INFO
-                self.sleep(int(self.config.otherTimings.loadinguser["before"]))
-                self.out.debug(f"Loading {target}'s page")
-                user_info = self.get_user_info(client, target) # obtain user info
-                if isinstance(user_info, self.UserStatus):
-                    self.anyLog(user_info, f"USER LOAD {target}")
-                    match user_info:
-                        case self.UserStatus.USER_NOT_FOUND:
-                            self.out.error(f"User {target} not found")
-                        case self.UserStatus.UNREACHABLE:
-                            self.out.error(f"User {target} is not reachable")
-                        case self.UserStatus.BLOCKED:
-                            self.parent.blocked.emit()
-                            self.sleep(int(self.config.otherTimings.blockban["block"]))
-                            self.parent.dec_successful.emit()
-                            self.out.error(f"Account {client.username} is blocked")
-                            break
-                        case self.UserStatus.BANNED:
-                            self.parent.banned.emit()
-                            self.sleep(int(self.config.otherTimings.blockban["ban"]))
-                            self.parent.dec_successful.emit()
-                            self.out.error(f"Account {client.username} is banned")
-                            break
-                        case self.UserStatus.GENERAL_ERROR:
-                            self.out.error(f"Loading user {target} caused an error")
-                            self.remove_cookies(creds["username"])
-                            break
-                    continue
-                else:
-                    self.out.info(f"Opened {target}'s page")
-                    self.anyLog(self.UserStatus.OK, f"USER LOAD {target}")
-                self.sleep(int(self.config.otherTimings.loadinguser["after"]))
-# ------------------------------------------------------------------ END ACQUIRE USER INFO
-# ------------------------------------------------------------------ CHECK SENDING PARAMETER
-                if not self.config.sendingParams.sendtoall:
-                    if  (self.config.sendingParams.onlytononverified and user_info.is_verified):
-                        self.out.warning(f"User {target} is verified, skipping...")
-                        self.anyLog(self.UserStatus.GENERAL_ERROR, target)
-                        i-=1
-                        continue
-                    elif(self.config.sendingParams.onlytoverified and not user_info.is_verified):
-                        self.out.warning(f"User {target} is not verified, skipping...")
-                        self.anyLog(self.UserStatus.GENERAL_ERROR, target)
-                        i-=1
-                        continue
-                bl.add_user(target)
-# ------------------------------------------------------------------ END CHECK SENDING PARAMETER
-# ------------------------------------------------------------------ LOAD MEDIA
-                if self.config.like.enabled or self.config.comment.enabled:
-                    self.out.info(f"Loading media from {target}")
-                    media_info = self.get_media_info(client, user_info)
-                    if isinstance(media_info, self.MediaStatus):
-                        self.anyLog(media_info, f"MEDIA LOAD {target}")
-                        match media_info:
-                            case self.MediaStatus.NONE_AVAIABLE:
-                                self.out.info(f"No media available for {target}")
-                            case self.MediaStatus.USER_NOT_FOUND:
-                                self.out.error(f"User {target} not found")
-                            case self.MediaStatus.UNREACHABLE:
-                                self.out.error(f"User {target} is not reachable")
-                            case self.MediaStatus.BLOCKED:
-                                self.parent.blocked.emit()
-                                self.sleep(int(self.config.otherTimings.blockban["block"]))
-                                self.parent.dec_successful.emit()
-                                self.out.error(f"Account {client.username} is blocked")
-                                break
-                            case self.MediaStatus.BANNED:
-                                self.parent.banned.emit()
-                                self.sleep(int(self.config.otherTimings.blockban["ban"]))
-                                self.parent.dec_successful.emit()
-                                self.out.error(f"Account {client.username} is banned")
-                                break
-                            case self.MediaStatus.GENERAL_ERROR:
-                                self.out.error(f"Loading media from {target} caused an error")
-                    else:
-                        self.out.info(f"Loaded media from {target}")
-                        self.anyLog(self.MediaStatus.OK, f"MEDIA LOAD {target}")
-# ------------------------------------------------------------------ LIKE MEDIA
-                        if self.config.like.enabled:
-                            if (self.config.like.enabled_filters and self.filter_check(self.config.like.filters, user_info)) or not self.config.like.enabled_filters:
-                                self.sleep(self.config.like.timebefore)
-                                self.out.debug(f"Liking media from {target}")
-                                status = self.likeAction(client, user_info,media_info)
-                                self.logLike(status, target)
-                                match status:
-                                    case self.MediaStatus.OK:
-                                        self.parent.total.emit()
-                                        self.parent.like.emit()
-                                        self.out.info(f"Liked media from {target}")
-                                    case self.MediaStatus.USER_NOT_FOUND:
-                                        self.out.error(f"User {target} not found")
-                                    case self.MediaStatus.UNREACHABLE:
-                                        self.out.error(f"User {target} is not reachable")
-                                    case self.MediaStatus.BLOCKED:
-                                        self.parent.blocked.emit()
-                                        self.sleep(int(self.config.otherTimings.blockban["block"]))
-                                        self.parent.dec_successful.emit()
-                                        self.out.error(f"Account {client.username} is blocked")
-                                        break
-                                    case self.MediaStatus.BANNED:
-                                        self.parent.banned.emit()
-                                        self.sleep(int(self.config.otherTimings.blockban["ban"]))
-                                        self.parent.dec_successful.emit()
-                                        self.out.error(f"Account {client.username} is banned")
-                                        break
-                                    case self.MediaStatus.GENERAL_ERROR:
-                                        self.out.error(f"Liking media from {target} caused an error")
-                                self.sleep(self.config.like.timeafter)
-# ------------------------------------------------------------------ END LIKE MEDIA
-# ------------------------------------------------------------------ COMMENT MEDIA
-                        if self.config.comment.enabled:
-                            if (self.config.comment.enabled_filters and self.filter_check(self.config.comment.filters, user_info)) or not self.config.comment.enabled_filters:
-                                self.sleep(self.config.comment.timebeforecomment)
-                                self.out.debug(f"Commenting on media from {target}")
-                                status = self.commentAction(client, user_info, media_info)
-                                self.logComment(status,target)
-                                match status:
-                                    case self.MediaStatus.OK:
-                                        self.parent.total.emit()
-                                        self.parent.comment.emit()
-                                        self.out.info(f"Commented on media from {target}")
-                                    case self.MediaStatus.USER_NOT_FOUND:
-                                        self.out.error(f"User {target} not found")
-                                    case self.MediaStatus.UNREACHABLE:
-                                        self.out.error(f"User {target} is not reachable")
-                                    case self.MediaStatus.BLOCKED:
-                                        self.parent.blocked.emit()
-                                        self.sleep(int(self.config.otherTimings.blockban["block"]))
-                                        self.parent.dec_successful.emit()
-                                        self.out.error(f"Account {client.username} is blocked")
-                                        break
-                                    case self.MediaStatus.BANNED:
-                                        self.parent.banned.emit()
-                                        self.sleep(int(self.config.otherTimings.blockban["ban"]))
-                                        self.parent.dec_successful.emit()
-                                        self.out.error(f"Account {client.username} is banned")
-                                        break
-                                    case self.MediaStatus.GENERAL_ERROR:
-                                        self.out.error(f"Commenting on media from {target} caused an error")
-                                self.sleep(self.config.comment.timeaftercomment)
-# ------------------------------------------------------------------ END COMMENT MEDIA
-# ------------------------------------------------------------------ END LOAD MEDIA
-# ------------------------------------------------------------------ SEND MESSAGE
-                if self.config.message.enabled:
-                    if (self.config.message.enabled_filters and self.filter_check(self.config.message.filters, user_info)) or not self.config.message.enabled_filters:
-                        self.sleep(self.config.message.timebeforemessage)
-                        self.out.debug(f"Reaching {target} through DMs")
-                        status = self.message(client,self.acquire_message(), user_info)
-                        self.logMessage(status, target)
-                        match status:
-                            case self.MessageStatus.OK:
-                                self.parent.total.emit()
-                                self.parent.dms.emit()
-                                self.out.info(f"Message sent to {target}")
-                            case self.MessageStatus.USER_NOT_FOUND:
-                                self.out.error(f"User {target} not found")
-                            case self.MessageStatus.UNREACHABLE:
-                                self.out.error(f"User {target} is not reachable")
-                            case self.MessageStatus.BLOCKED:
-                                self.parent.blocked.emit()
-                                self.sleep(int(self.config.otherTimings.blockban["block"]))
-                                self.parent.dec_successful.emit()
-                                self.out.error(f"Account {client.username} is blocked")
-                                break
-                            case self.MessageStatus.BANNED:
-                                self.parent.banned.emit()
-                                self.sleep(int(self.config.otherTimings.blockban["ban"]))
-                                self.parent.dec_successful.emit()
-                                self.out.error(f"Account {client.username} is banned")
-                                break
-                            case self.MessageStatus.GENERAL_ERROR:
-                                self.out.error(f"Sending message to {target} caused an error")
-                        self.sleep(self.config.message.timeaftermessage)
-# ------------------------------------------------------------------ END SEND MESSAGE
-# ------------------------------------------------------------------ FOLLOW TARGET
-                if self.config.follow.enabled:
-                    if (self.config.follow.enabled_filters and self.filter_check(self.config.follow.filters, user_info)) or not self.config.follow.enabled_filters:
-                        self.sleep(self.config.follow.timebefore)
-                        self.out.debug(f"Following {target}")
-                        status = self.followAction(client, user_info)
-                        self.logFollow(status, target)
-                        match status:
-                            case self.UserStatus.OK:
-                                self.parent.total.emit()
-                                self.parent.follow.emit()
-                                self.out.info(f"Followed {target}")
+            try:
+                while i < self.config.usersforeachaccount: # loop that goes from 0 to self.config.usersforeachaccount
+    # ------------------------------------------------------------------ ACQUIRE TARGET
+                    target = self.acquire_target() # obtain target
+                    if self.license_manager.increment_interaction():
+                        self.out.warning("License limit reached, stopping process")
+                        return
+                    i += 1
+                    if target is None:
+                        self.out.debug(f"All targets have been interacted with")
+                        self.out.debug("Stopping process...")
+                        break
+    # ------------------------------------------------------------------ END ACQUIRE TARGET
+    # ------------------------------------------------------------------ ACQUIRE USER INFO
+                    self.sleep(int(self.config.otherTimings.loadinguser["before"]))
+                    self.out.debug(f"Loading {target}'s page")
+                    user_info = self.get_user_info(client, target) # obtain user info
+                    if isinstance(user_info, self.UserStatus):
+                        self.anyLog(user_info, f"USER LOAD {target}")
+                        match user_info:
                             case self.UserStatus.USER_NOT_FOUND:
                                 self.out.error(f"User {target} not found")
                             case self.UserStatus.UNREACHABLE:
@@ -1180,24 +1002,207 @@ class ProcessCore(ProcessUtils,InstaCore):
                                 self.out.error(f"Account {client.username} is banned")
                                 break
                             case self.UserStatus.GENERAL_ERROR:
-                                self.out.error(f"Following {target} caused an error")
-                        self.sleep(self.config.follow.timeafter)
-# ------------------------------------------------------------------ END FOLLOW TARGET
-# ------------------------------------------------------------------ CHECK FOR STOP SIGNAL
-                if self.parent.stop:
-                    self.out.info("Stopping process...")
-                    self.anyLog(self.AnyStatus.OK,"Stopping process")
-                    self.parent.stop = False
-                    return
-# ------------------------------------------------------------------ END CHECK FOR STOP SIGNAL
-# ------------------------------------------------------------------ CHECK FOR LOGOUT SIGNAL
-                if self.parent.logout:
-                    self.out.info("Logging out...")
-                    self.anyLog(self.AnyStatus.OK, f"Logging out of {client.username}")
-                    self.parent.logout = False
-                    self.sleep(int(self.config.otherTimings.logout["after"])+int(self.config.otherTimings.logout["before"]))
-                    break
-# ------------------------------------------------------------------ END CHECK FOR LOGOUT SIGNAL
+                                self.out.error(f"Loading user {target} caused an error")
+                                self.remove_cookies(creds["username"])
+                                break
+                        continue
+                    else:
+                        self.out.info(f"Opened {target}'s page")
+                        self.anyLog(self.UserStatus.OK, f"USER LOAD {target}")
+                    self.sleep(int(self.config.otherTimings.loadinguser["after"]))
+    # ------------------------------------------------------------------ END ACQUIRE USER INFO
+    # ------------------------------------------------------------------ CHECK SENDING PARAMETER
+                    if not self.config.sendingParams.sendtoall:
+                        if  (self.config.sendingParams.onlytononverified and user_info.is_verified):
+                            self.out.warning(f"User {target} is verified, skipping...")
+                            self.anyLog(self.UserStatus.GENERAL_ERROR, target)
+                            i-=1
+                            continue
+                        elif(self.config.sendingParams.onlytoverified and not user_info.is_verified):
+                            self.out.warning(f"User {target} is not verified, skipping...")
+                            self.anyLog(self.UserStatus.GENERAL_ERROR, target)
+                            i-=1
+                            continue
+                    bl.add_user(target)
+    # ------------------------------------------------------------------ END CHECK SENDING PARAMETER
+    # ------------------------------------------------------------------ LOAD MEDIA
+                    if self.config.like.enabled or self.config.comment.enabled:
+                        self.out.info(f"Loading media from {target}")
+                        media_info = self.get_media_info(client, user_info)
+                        if isinstance(media_info, self.MediaStatus):
+                            self.anyLog(media_info, f"MEDIA LOAD {target}")
+                            match media_info:
+                                case self.MediaStatus.NONE_AVAIABLE:
+                                    self.out.info(f"No media available for {target}")
+                                case self.MediaStatus.USER_NOT_FOUND:
+                                    self.out.error(f"User {target} not found")
+                                case self.MediaStatus.UNREACHABLE:
+                                    self.out.error(f"User {target} is not reachable")
+                                case self.MediaStatus.BLOCKED:
+                                    self.parent.blocked.emit()
+                                    self.sleep(int(self.config.otherTimings.blockban["block"]))
+                                    self.parent.dec_successful.emit()
+                                    self.out.error(f"Account {client.username} is blocked")
+                                    break
+                                case self.MediaStatus.BANNED:
+                                    self.parent.banned.emit()
+                                    self.sleep(int(self.config.otherTimings.blockban["ban"]))
+                                    self.parent.dec_successful.emit()
+                                    self.out.error(f"Account {client.username} is banned")
+                                    break
+                                case self.MediaStatus.GENERAL_ERROR:
+                                    self.out.error(f"Loading media from {target} caused an error")
+                        else:
+                            self.out.info(f"Loaded media from {target}")
+                            self.anyLog(self.MediaStatus.OK, f"MEDIA LOAD {target}")
+    # ------------------------------------------------------------------ LIKE MEDIA
+                            if self.config.like.enabled:
+                                if (self.config.like.enabled_filters and self.filter_check(self.config.like.filters, user_info)) or not self.config.like.enabled_filters:
+                                    self.sleep(self.config.like.timebefore)
+                                    self.out.debug(f"Liking media from {target}")
+                                    status = self.likeAction(client, user_info,media_info)
+                                    self.logLike(status, target)
+                                    match status:
+                                        case self.MediaStatus.OK:
+                                            self.parent.total.emit()
+                                            self.parent.like.emit()
+                                            self.out.info(f"Liked media from {target}")
+                                        case self.MediaStatus.USER_NOT_FOUND:
+                                            self.out.error(f"User {target} not found")
+                                        case self.MediaStatus.UNREACHABLE:
+                                            self.out.error(f"User {target} is not reachable")
+                                        case self.MediaStatus.BLOCKED:
+                                            self.parent.blocked.emit()
+                                            self.sleep(int(self.config.otherTimings.blockban["block"]))
+                                            self.parent.dec_successful.emit()
+                                            self.out.error(f"Account {client.username} is blocked")
+                                            break
+                                        case self.MediaStatus.BANNED:
+                                            self.parent.banned.emit()
+                                            self.sleep(int(self.config.otherTimings.blockban["ban"]))
+                                            self.parent.dec_successful.emit()
+                                            self.out.error(f"Account {client.username} is banned")
+                                            break
+                                        case self.MediaStatus.GENERAL_ERROR:
+                                            self.out.error(f"Liking media from {target} caused an error")
+                                    self.sleep(self.config.like.timeafter)
+    # ------------------------------------------------------------------ END LIKE MEDIA
+    # ------------------------------------------------------------------ COMMENT MEDIA
+                            if self.config.comment.enabled:
+                                if (self.config.comment.enabled_filters and self.filter_check(self.config.comment.filters, user_info)) or not self.config.comment.enabled_filters:
+                                    self.sleep(self.config.comment.timebeforecomment)
+                                    self.out.debug(f"Commenting on media from {target}")
+                                    status = self.commentAction(client, user_info, media_info)
+                                    self.logComment(status,target)
+                                    match status:
+                                        case self.MediaStatus.OK:
+                                            self.parent.total.emit()
+                                            self.parent.comment.emit()
+                                            self.out.info(f"Commented on media from {target}")
+                                        case self.MediaStatus.USER_NOT_FOUND:
+                                            self.out.error(f"User {target} not found")
+                                        case self.MediaStatus.UNREACHABLE:
+                                            self.out.error(f"User {target} is not reachable")
+                                        case self.MediaStatus.BLOCKED:
+                                            self.parent.blocked.emit()
+                                            self.sleep(int(self.config.otherTimings.blockban["block"]))
+                                            self.parent.dec_successful.emit()
+                                            self.out.error(f"Account {client.username} is blocked")
+                                            break
+                                        case self.MediaStatus.BANNED:
+                                            self.parent.banned.emit()
+                                            self.sleep(int(self.config.otherTimings.blockban["ban"]))
+                                            self.parent.dec_successful.emit()
+                                            self.out.error(f"Account {client.username} is banned")
+                                            break
+                                        case self.MediaStatus.GENERAL_ERROR:
+                                            self.out.error(f"Commenting on media from {target} caused an error")
+                                    self.sleep(
+                                        self.config.comment.timeaftercomment)
+    # ------------------------------------------------------------------ END COMMENT MEDIA
+    # ------------------------------------------------------------------ END LOAD MEDIA
+    # ------------------------------------------------------------------ SEND MESSAGE
+                    if self.config.message.enabled:
+                        if (self.config.message.enabled_filters and self.filter_check(self.config.message.filters, user_info)) or not self.config.message.enabled_filters:
+                            self.sleep(self.config.message.timebeforemessage)
+                            self.out.debug(f"Reaching {target} through DMs")
+                            status = self.message(client,self.acquire_message(), user_info)
+                            self.logMessage(status, target)
+                            match status:
+                                case self.MessageStatus.OK:
+                                    self.parent.total.emit()
+                                    self.parent.dms.emit()
+                                    self.out.info(f"Message sent to {target}")
+                                case self.MessageStatus.USER_NOT_FOUND:
+                                    self.out.error(f"User {target} not found")
+                                case self.MessageStatus.UNREACHABLE:
+                                    self.out.error(f"User {target} is not reachable")
+                                case self.MessageStatus.BLOCKED:
+                                    self.parent.blocked.emit()
+                                    self.sleep(int(self.config.otherTimings.blockban["block"]))
+                                    self.parent.dec_successful.emit()
+                                    self.out.error(f"Account {client.username} is blocked")
+                                    break
+                                case self.MessageStatus.BANNED:
+                                    self.parent.banned.emit()
+                                    self.sleep(int(self.config.otherTimings.blockban["ban"]))
+                                    self.parent.dec_successful.emit()
+                                    self.out.error(f"Account {client.username} is banned")
+                                    break
+                                case self.MessageStatus.GENERAL_ERROR:
+                                    self.out.error(f"Could not send message to {target}")
+                            self.sleep(self.config.message.timeaftermessage)
+    # ------------------------------------------------------------------ END SEND MESSAGE
+    # ------------------------------------------------------------------ FOLLOW TARGET
+                    if self.config.follow.enabled:
+                        if (self.config.follow.enabled_filters and self.filter_check(self.config.follow.filters, user_info)) or not self.config.follow.enabled_filters:
+                            self.sleep(self.config.follow.timebefore)
+                            self.out.debug(f"Following {target}")
+                            status = self.followAction(client, user_info)
+                            self.logFollow(status, target)
+                            match status:
+                                case self.UserStatus.OK:
+                                    self.parent.total.emit()
+                                    self.parent.follow.emit()
+                                    self.out.info(f"Followed {target}")
+                                case self.UserStatus.USER_NOT_FOUND:
+                                    self.out.error(f"User {target} not found")
+                                case self.UserStatus.UNREACHABLE:
+                                    self.out.error(f"User {target} is not reachable")
+                                case self.UserStatus.BLOCKED:
+                                    self.parent.blocked.emit()
+                                    self.sleep(int(self.config.otherTimings.blockban["block"]))
+                                    self.parent.dec_successful.emit()
+                                    self.out.error(f"Account {client.username} is blocked")
+                                    break
+                                case self.UserStatus.BANNED:
+                                    self.parent.banned.emit()
+                                    self.sleep(int(self.config.otherTimings.blockban["ban"]))
+                                    self.parent.dec_successful.emit()
+                                    self.out.error(f"Account {client.username} is banned")
+                                    break
+                                case self.UserStatus.GENERAL_ERROR:
+                                    self.out.error(f"Following {target} caused an error")
+                                    break
+                            self.sleep(self.config.follow.timeafter)
+    # ------------------------------------------------------------------ END FOLLOW TARGET
+    # ------------------------------------------------------------------ CHECK FOR STOP SIGNAL
+                    if self.parent.stop:
+                        self.out.info("Stopping process...")
+                        self.anyLog(self.AnyStatus.OK,"Stopping process")
+                        self.parent.stop = False
+                        return
+    # ------------------------------------------------------------------ END CHECK FOR STOP SIGNAL
+    # ------------------------------------------------------------------ CHECK FOR LOGOUT SIGNAL
+                    if self.parent.logout:
+                        self.out.info("Logging out...")
+                        self.anyLog(self.AnyStatus.OK, f"Logging out of {client.username}")
+                        self.parent.logout = False
+                        self.sleep(int(self.config.otherTimings.logout["after"])+int(self.config.otherTimings.logout["before"]))
+                        break
+    # ------------------------------------------------------------------ END CHECK FOR LOGOUT SIGNAL
+            except Exception as exc:
+                self.out.warning("An error occured during session "+str(exc)+" logging into new account...")
 # ------------------------------------------------------------------ CHECK FOR STOP SIGNAL
             if self.parent.stop:
                 self.out.info("Stopping process...")
@@ -1374,7 +1379,7 @@ class ExtractorCore(QThread, CodeConnected, ConsoleConnected):
                 self.debug(f"Getting {self.config.target_type.value} of {user_info.username}")
                 max_id = ""
                 
-                with open(os.path.join(self.config.output_path, f"{user_info.username}-{self.config.max_amount}.txt"), "w") as f, open(os.path.join(self.config.output_path, f"{user_info.username}-{self.config.max_amount}-FULL.csv"), "w") as f2:
+                with open(os.path.join(self.config.output_path, f"{user_info.username}-{self.config.max_amount}.txt"), "w",encoding="utf-8") as f, open(os.path.join(self.config.output_path, f"{user_info.username}-{self.config.max_amount}-FULL.csv"), "w",encoding="utf-8") as f2:
                     # set the separator in f2 to be ,
                     f2.write("sep=;\n")
                     f2.write("USERNAME;FULL_NAME;ACCOUNT_PRIVACY;USERID\n")
@@ -1406,7 +1411,7 @@ class ExtractorCore(QThread, CodeConnected, ConsoleConnected):
                                 f2.write(f"{user.username};{user.full_name};{'PRIVATE' if user.is_private else 'PUBLIC'};{user.pk}\n")
             elif self.config.target_type == TargetType.HASHTAGS:
                 max_id=""
-                with open(os.path.join(self.config.output_path, f"{self.config.target}-{self.config.max_amount}.txt"), "w") as f, open(os.path.join(self.config.output_path, f"{self.config.target}-{self.config.max_amount}-FULL.csv"), "w") as f2:
+                with open(os.path.join(self.config.output_path, f"{self.config.target}-{self.config.max_amount}.txt"), "w",encoding="utf-8") as f, open(os.path.join(self.config.output_path, f"{self.config.target}-{self.config.max_amount}-FULL.csv"), "w",encoding="utf-8") as f2:
                     f2.write("sep=;\n")
                     f2.write("USERNAME;FULL_NAME;ACCOUNT_PRIVACY;USERID;MEDIA_LIKES;MEDIA_COMMENTS\n")
                     while i > 0:
@@ -1425,7 +1430,7 @@ class ExtractorCore(QThread, CodeConnected, ConsoleConnected):
                             i-=1
             elif self.config.target_type == TargetType.LIKES or self.config.target_type == TargetType.COMMENTS:
                 media_info = self.get_media_info(client, self.config.target)
-                with open(os.path.join(self.config.output_path, f"{media_info.code}-{self.config.max_amount}.txt"), "w") as f, open(os.path.join(self.config.output_path, f"{media_info.code}-{self.config.max_amount}-FULL.csv"), "w") as f2:
+                with open(os.path.join(self.config.output_path, f"{media_info.code}-{self.config.max_amount}.txt"), "w",encoding="utf-8") as f, open(os.path.join(self.config.output_path, f"{media_info.code}-{self.config.max_amount}-FULL.csv"), "w",encoding="utf-8") as f2:
                     f2.write("sep=;\n")
                     f2.write("USERNAME;FULL_NAME;ACCOUNT_PRIVACY;USERID\n")
                     if self.config.target_type == TargetType.LIKES:
