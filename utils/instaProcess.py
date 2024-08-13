@@ -3,6 +3,7 @@ from enum import Enum
 import os
 from pathlib import Path
 import re
+import string
 from threading import Thread,Lock
 import time
 import traceback
@@ -1372,6 +1373,7 @@ class ExtractorCore(QThread, CodeConnected, ConsoleConnected):
             if not os.path.exists(self.config.output_path):
                 os.makedirs(self.config.output_path,exist_ok=True)
             if self.config.target_type == TargetType.FOLLOWERS or self.config.target_type == TargetType.FOLLOWINGS:
+                self.config.target = "".join(filter(lambda x: x in string.digits + string.ascii_letters + string.punctuation, self.config.target))
                 user_info = self.get_user_info(client, self.config.target)
                 if isinstance(user_info, self.UserStatus):
                     self.error(f"Failed to get user info, status -> {user_info.name}")
@@ -1392,7 +1394,11 @@ class ExtractorCore(QThread, CodeConnected, ConsoleConnected):
                                 self.warning(
                                     "GQL API block, waiting for a random amount of time")
                                 time.sleep(random.random()*10)
-                                users,max_id = client.user_followers_v1_chunk(user_info.pk,max_amount=50,max_id=max_id)
+                                try:
+                                    users,max_id = client.user_followers_v1_chunk(user_info.pk,max_amount=50,max_id=max_id)
+                                except Exception as e:
+                                    if "wait" in str(e):
+                                        self.warning("Instagram limited the account, waiting 3 minutes before a new attempt")
                             self.info("Chunk of users downloaded, max_id:")
                             self.info(max_id)
                             for user in users:
@@ -1401,8 +1407,11 @@ class ExtractorCore(QThread, CodeConnected, ConsoleConnected):
                                 f2.write(f"{user.username};{user.full_name};{'PRIVATE' if user.is_private else 'PUBLIC'};{user.pk}\n")
                         elif self.config.target_type == TargetType.FOLLOWINGS:
                             time.sleep(random.random()*5)
-                            users, max_id = client.user_following_v1_chunk(
-                                user_info.pk, max_amount=50,max_id=max_id)
+                            try:
+                                users, max_id = client.user_following_v1_chunk(user_info.pk, max_amount=50,max_id=max_id)
+                            except Exception as e:
+                                if "wait" in str(e):
+                                    self.warning("Instagram limited the account, waiting 3 minutes before a new attempt")
                             self.info("Chunk of users downloaded, max_id:")
                             self.info(max_id)
                             for user in users:
@@ -1421,7 +1430,11 @@ class ExtractorCore(QThread, CodeConnected, ConsoleConnected):
                         except:
                             self.warning("A1 API block, waiting for a random amount of time")
                             time.sleep(random.random()*10)
-                            medias,max_id = client.hashtag_medias_v1_chunk(self.config.target,max_id=max_id)
+                            try:
+                                medias,max_id = client.hashtag_medias_v1_chunk(self.config.target,max_id=max_id)
+                            except Exception as e:
+                                if "wait" in str(e):
+                                    self.warning("Instagram limited the account, waiting 3 minutes before a new attempt")
                         self.info("Chunk of users downloaded, max_id:")
                         self.info(max_id)
                         for media in medias:
@@ -1451,3 +1464,4 @@ class ExtractorCore(QThread, CodeConnected, ConsoleConnected):
         except Exception as e:
             print(e)
             self.error(str(e))
+            self.warning("Stopping extraction process")
