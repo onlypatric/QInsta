@@ -1,6 +1,6 @@
 from datetime import datetime
 import os
-import re
+from uuid import getnode
 from appdata import AppDataPaths
 from typing import Dict, List, Tuple,Union
 from extracomps.ButtonHolder import ButtonHolder
@@ -16,7 +16,8 @@ from utils.configLoader import open_config
 import re
 from extracomps.ConsoleWriter import Incrementer
 from utils.instaProcess import ExtractorCore, InstaProcess, License
-
+def obtain_unique_code() -> str:
+    return hex(getnode()).upper()
 def matchTo(selection:int, values:List|Tuple) -> str:
     if selection >= len(values):
         return ""
@@ -700,6 +701,15 @@ class MainWindow(Window,Configured):
     def eConsoleWrite(self, message, type):
         Finder.get("e-console").emit(message, type)
     def start(self):
+        license_location = os.path.join(AppDataPaths().get_config_path(
+            "QInsta", create=True),"LICENSE-KEY.txt")
+        if not os.path.exists(license_location):
+            # ask the user for a license key
+            license_key, ok = QInputDialog.getText(self, "License key", "Enter your license key:")
+            if ok:
+                with open(license_location, "w") as f:
+                    f.write(license_key)
+            
         path = Finder.get("currentConfig").text()
         use_curr_config = False
         if not os.path.exists(path):

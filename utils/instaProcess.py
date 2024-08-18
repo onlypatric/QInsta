@@ -7,7 +7,9 @@ import string
 from threading import Thread,Lock
 import time
 import traceback
+from requests import get,post
 from typing import Dict, List, Tuple
+from uuid import getnode
 from instagrapi import Client,exceptions,types
 from PyQt6.QtCore import QThread, pyqtSignal,pyqtSlot,QObject
 from extracomps.ButtonHolder import ButtonHolder
@@ -248,16 +250,37 @@ class InstaProcess(QThread, Readables, ConsoleConnected, InstagramSignals, CodeC
         self.likes = LogRegister("Likes")
         self.follows = LogRegister("Follows")
         self.all = LogRegister("All")
-        self.config_path = self.appdata.get_config_path("QInsta",create=True)
+        self.config_path = self.appdata.get_config_path("QInsta",create=True) # AppDataPaths()
         self.cookiepath = os.path.join(self.config_path, "Cookies")
         self.log_path = os.path.join(self.config_path, "logs")
         os.makedirs(self.config_path,exist_ok=True)
         os.makedirs(self.cookiepath, exist_ok=True)
     def run(self):
-        today = datetime.now()
-        if today > datetime(2024,8,25):
-            ConsoleWriter.critical("14 day trial expired...")
+        license_location = os.path.join(AppDataPaths().get_config_path(
+            "QInsta", create=True), "LICENSE-KEY.txt")
+        device_id = hex(getnode()).upper()
+        BASE_URL = "https://patricpintescul.pythonanywhere.com"
+        url = f"{BASE_URL}/check_and_add_device"
+        if not os.path.exists(license_location):
+            self.critical("License file not found!")
             return
+        elif len(open(license_location,"r").read())<5:
+            self.critical("Invalid license key!")
+            os.remove(license_location)
+            return
+        else:
+            license_key = open(license_location, "r").read().strip()
+            data = {
+                "license_name": license_key,
+                "device_id": device_id
+            }
+            response = post(url, json=data)
+            if response.json()["result"] == False:  # license is not valid
+                self.critical("License does not exist or is full of registered computers")
+                os.remove(license_location)
+                return
+        ConsoleWriter.info("Your license is valid")
+
         ConsoleWriter.clear()
         valid_extensions = [".txt",".csv",".json",".xlsx"]
         self.parsedUserList=None
