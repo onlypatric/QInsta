@@ -352,57 +352,6 @@ class InstaProcess(QThread, Readables, ConsoleConnected, InstagramSignals, CodeC
             self.critical("Invalid file type!")
             return
         #endregion
-        self.info(f"Loading {len(self.parsedTargetList)} targets from target list")
-        # show how many proxies were found if > 0
-        if len(self.config.proxies) > 0:
-            self.info(f"Found {len(self.config.proxies)} proxies")
-        else:
-            self.info("Proxy mode off, no proxies found")
-        # check if message mode is enabled
-        if self.config.message.enabled:
-            self.info(f"DM mode enabled with filters {'ON' if self.config.message.enabled_filters else 'OFF'}")
-        else:
-            self.info(f"DM mode disabled")
-        # check if comment mode is enabled
-        if self.config.comment.enabled:
-            self.info(f"Comment mode enabled with filters {'ON' if self.config.comment.enabled_filters else 'OFF'}")
-        else:
-            self.info(f"Comment mode disabled")
-        # check if like mode is enabled
-        if self.config.like.enabled:
-            self.info(f"Like mode enabled with filters {'ON' if self.config.like.enabled_filters else 'OFF'}")
-        else:
-            self.info(f"Like mode disabled")
-        # check if follow mode is enabled
-        if self.config.follow.enabled:
-            self.info(f"Follow mode enabled with filters {'ON' if self.config.follow.enabled_filters else 'OFF'}")
-        else:
-            self.info(f"Follow mode disabled")
-        
-        # check saveParams
-        if self.config.saveParams.to_json:
-            self.info("Saving user data to json file")
-        if self.config.saveParams.to_csv:
-            self.info("Saving user data to csv file")
-        if self.config.saveParams.blocks:
-            self.info("Saving blocked accounts to csv")
-        if self.config.saveParams.bans:
-            self.info("Saving banned accounts to csv")
-        if self.config.saveParams.twice_attempt:
-            self.info("If any login is failed, the software will attempt a second login")
-        if self.config.saveParams.ask_for_code:
-            self.info("The software will ask for 2FA code if needed")
-        if self.config.saveParams.save_cookies:
-            self.info("The software will save cookies to a file")
-        if self.config.saveParams.save_session:
-            self.info("The software will save SessionID to a file")
-        
-        if self.config.sendingParams.onlytoverified:
-            self.info("The software will only send messages to verified accounts")
-        elif self.config.sendingParams.onlytononverified:
-            self.info("The software will only send messages to non-verified accounts")
-        else:
-            self.info("The software will send messages to all accounts")
         
         self.info("Device settings are not yet supported...")
         ConsoleWriter.clear()
@@ -824,6 +773,38 @@ class InstaCore:
             return self.MediaStatus.BANNED
         except Exception as e:
             return self.MediaStatus.GENERAL_ERROR
+    def random_actions(self, client:Client):
+        try:
+            match random.randint(0, 2):
+                case 0:
+                    if client.new_feed_exist():
+                        client.get_timeline_feed()
+                case 1:
+                    client.media_seen([media.id for media in client.reels()])
+                case 2:
+                    client.explore_page()
+                    client.explore_reels()
+        except exceptions.PrivateAccount:
+            return self.AnyStatus.UNREACHABLE
+        except (exceptions.RateLimitError, exceptions.PleaseWaitFewMinutes):
+            return self.AnyStatus.BLOCKED
+        except (exceptions.ChallengeRequired, exceptions.ChallengeError, exceptions.ChallengeRedirection, exceptions.ChallengeSelfieCaptcha, exceptions.ChallengeUnknownStep, exceptions.RecaptchaChallengeForm):
+            return self.AnyStatus.BANNED
+        except Exception as e:
+            return self.AnyStatus.GENERAL_ERROR
+    def open_account(self, client:Client):
+        try:
+            client.get_timeline_feed()
+            client.news_inbox_v1(True)
+            client.direct_threads()
+        except exceptions.PrivateAccount:
+            return self.AnyStatus.UNREACHABLE
+        except (exceptions.RateLimitError, exceptions.PleaseWaitFewMinutes):
+            return self.AnyStatus.BLOCKED
+        except (exceptions.ChallengeRequired, exceptions.ChallengeError, exceptions.ChallengeRedirection, exceptions.ChallengeSelfieCaptcha, exceptions.ChallengeUnknownStep, exceptions.RecaptchaChallengeForm):
+            return self.AnyStatus.BANNED
+        except Exception as e:
+            return self.AnyStatus.GENERAL_ERROR
     def login(self, client: Client,attempt_twice:bool=True,user:Dict[str,str]=None) -> LoginStatus:
         if user is not None:
             credentials = user

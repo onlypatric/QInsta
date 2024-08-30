@@ -208,7 +208,9 @@ class Configured:
                 "userAgentOrder": Finder.get("q-deviceagentorder").get()
             },
             "timebeforelogin": Finder.get("q-timebeforelogin").get(),
-            "timeafterlogin": Finder.get("q-timeafterlogin").get()
+            "timeafterlogin": Finder.get("q-timeafterlogin").get(),
+            "randomActions": Finder.get("q-randomActions").get(),
+            "loginActions":Finder.get("q-loginActions").get()
         }
     def saveConfiguration(self):
         os.system("clear")
@@ -332,6 +334,8 @@ class Configured:
                 "q-timebeforelogin").set(configuration_dict["timebeforelogin"])
             Finder.get(
                 "q-timeafterlogin").set(configuration_dict["timeafterlogin"])
+            Finder.get("q-loginActions").set(configuration_dict["loginAction"])
+            Finder.get("q-randomActions").set(configuration_dict["randomActions"])
             self.update()
             Finder.get("currentConfig").set(self.path)
 
@@ -382,6 +386,8 @@ class Configured:
         Finder.get("q-askForCode").set(False)
         Finder.get("q-saveCookies").set(False)
         Finder.get("q-saveSession").set(False)
+        Finder.get("q-loginActions").set(False)
+        Finder.get("q-randomActions").set(False)
         Finder.get("q-onlytoverified").set(False)
         Finder.get("q-onlytononverified").set(False)
         Finder.get("q-sendtoall").set(True)
@@ -549,6 +555,8 @@ class MainWindow(Window,Configured):
                         [Toggle().id("q-saveBlocksRecord"), Text("Save blocks record", Text.Type.P3), Toggle().id("q-saveBansRecord"), Text("Save bans record", Text.Type.P3)],
                         [Toggle().id("q-twiceAttempt"), Text("Attempt twice to login", Text.Type.P3), Toggle().id("q-askForCode"), Text("Ask for manual code input", Text.Type.P3)],
                         [Toggle().id("q-saveCookies").check(True), Text("Save cookies", Text.Type.P3), Toggle().id("q-saveSession").check(True), Text("Save session ID", Text.Type.P3)],
+                        [Toggle().id("q-randomActions").check(True), Text("More random actions", Text.Type.P3),
+                         Toggle().id("q-loginActions").check(True), Text("Login default actions", Text.Type.P3)],
                     ),
                     "Extra configurations"
                 ),

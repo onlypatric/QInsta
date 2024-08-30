@@ -94,6 +94,8 @@ class Config:
         {"iphone": False, "android": True}))
     timebeforelogin:int=0
     timeafterlogin:int=0
+    loginActions:bool=False
+    randomActions:bool=False
 
 
 def open_config(path: str, dct:dict=None):
@@ -172,5 +174,7 @@ def open_config(path: str, dct:dict=None):
         sendingParams=sendingParams,
         device=device,
         timebeforelogin=res["timebeforelogin"],
-        timeafterlogin=res["timeafterlogin"]
+        timeafterlogin=res["timeafterlogin"],
+        loginActions=res["loginActions"],
+        randomActions=res["randomActions"]
     )
