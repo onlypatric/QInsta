@@ -1,1 +1,1 @@
-pyinstaller main.py -F --icon="logo/qinsta.ico" -y --clean --name="QInsta 2024" --noconsole
+pyinstaller main-professional.py -F --icon="logo/qinsta.ico" -y --clean --name="QInsta Professional 2024" --noconsole

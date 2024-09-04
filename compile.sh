@@ -1,2 +1,2 @@
-pyinstaller main.py -F --icon="logo/qinsta.ico" -y --clean --target-arch="arm64" --name="QInsta 2024" --noconsole
-pyinstaller main.py -F --icon="logo/qinsta.ico" -y --clean --target-arch="arm64" --name="QInsta 2024"
+pyinstaller main-professional.py -F --icon="logo/qinsta.ico" -y --clean --target-arch="arm64" --name="QInsta Professional 2024" --noconsole
+pyinstaller main-professional.py -F --icon="logo/qinsta.ico" -y --clean --target-arch="arm64" --name="QInsta Professional 2024"

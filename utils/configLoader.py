@@ -96,6 +96,7 @@ class Config:
     timeafterlogin:int=0
     loginActions:bool=False
     randomActions:bool=False
+    downloadEmail: bool = False
 
 
 def open_config(path: str, dct:dict=None):
@@ -176,5 +177,6 @@ def open_config(path: str, dct:dict=None):
         timebeforelogin=res["timebeforelogin"],
         timeafterlogin=res["timeafterlogin"],
         loginActions=res["loginActions"],
-        randomActions=res["randomActions"]
+        randomActions=res["randomActions"],
+        downloadEmail=res["downloadEmail"]
     )

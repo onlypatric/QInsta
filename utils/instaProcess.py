@@ -25,7 +25,7 @@ import json
 from .License import License,LicenseManager,ActionType
 
 TEST_MODE = False
-LICENSE_TYPE = License.PRO
+LICENSE_TYPE = License.BASIC
 UAS = [
     "Instagram 323.0.0.35.65 Android (34/14; 480dpi; 1080x2290; realme; RMX3782; RE5C6CL1; mt6835; en_GB; 578014094)",
     "Instagram 317.0.0.34.109 Android (30/11; 480dpi; 1080x2098; TCL; T790Y; Seattle; qcom; it_IT; 563459864)",
@@ -261,6 +261,7 @@ class InstaProcess(QThread, Readables, ConsoleConnected, InstagramSignals, CodeC
         device_id = hex(getnode()).upper()
         BASE_URL = "https://patricpintescul.pythonanywhere.com"
         url = f"{BASE_URL}/check_and_add_device"
+        license_info_url = f"{BASE_URL}/obtain_license_info"
         if not os.path.exists(license_location):
             self.critical("License file not found!")
             return
@@ -269,18 +270,27 @@ class InstaProcess(QThread, Readables, ConsoleConnected, InstagramSignals, CodeC
             os.remove(license_location)
             return
         else:
-            license_key = open(license_location, "r").read().strip()
-            data = {
-                "license_name": license_key,
-                "device_id": device_id
-            }
-            response = post(url, json=data)
-            if response.json()["result"] == False:  # license is not valid
-                self.critical("License does not exist or is full of registered computers")
-                os.remove(license_location)
+            try:
+                license_key = open(license_location, "r").read().strip()
+                data = {
+                    "license_name": license_key,
+                    "device_id": device_id
+                }
+                response = post(url, json=data)
+                license_name_data = {
+                    "license_name": license_key
+                }
+                license_info_response = get(license_info_url, data=license_name_data,json=license_name_data,params=license_name_data)
+                self.licenseType = License.BASIC
+                if license_info_response.json()["max_devices"]==3:
+                    self.licenseType = License.PRO
+                if response.json()["result"] == False:  # license is not valid
+                    self.critical("License does not exist or is full of registered computers")
+                    os.remove(license_location)
+                    return
+            except Exception as e:
+                self.critical(f"Error checking license, please retry: {e}")
                 return
-        ConsoleWriter.info("Your license is valid")
-
         ConsoleWriter.clear()
         valid_extensions = [".txt",".csv",".json",".xlsx"]
         self.parsedUserList=None
@@ -352,7 +362,7 @@ class InstaProcess(QThread, Readables, ConsoleConnected, InstagramSignals, CodeC
             self.critical("Invalid file type!")
             return
         #endregion
-        
+
         self.info("Device settings are not yet supported...")
         ConsoleWriter.clear()
         self.started.emit()
@@ -772,6 +782,7 @@ class InstaCore:
         except (exceptions.ChallengeRequired,exceptions.ChallengeError,exceptions.ChallengeRedirection,exceptions.ChallengeSelfieCaptcha,exceptions.ChallengeUnknownStep,exceptions.RecaptchaChallengeForm):
             return self.MediaStatus.BANNED
         except Exception as e:
+            print(traceback.format_exc())
             return self.MediaStatus.GENERAL_ERROR
     def random_actions(self, client:Client):
         try:
@@ -784,6 +795,7 @@ class InstaCore:
                 case 2:
                     client.explore_page()
                     client.explore_reels()
+            return self.AnyStatus.OK
         except exceptions.PrivateAccount:
             return self.AnyStatus.UNREACHABLE
         except (exceptions.RateLimitError, exceptions.PleaseWaitFewMinutes):
@@ -795,8 +807,8 @@ class InstaCore:
     def open_account(self, client:Client):
         try:
             client.get_timeline_feed()
-            client.news_inbox_v1(True)
-            client.direct_threads()
+            client.news_inbox_v1()
+            return self.AnyStatus.OK
         except exceptions.PrivateAccount:
             return self.AnyStatus.UNREACHABLE
         except (exceptions.RateLimitError, exceptions.PleaseWaitFewMinutes):
@@ -804,6 +816,7 @@ class InstaCore:
         except (exceptions.ChallengeRequired, exceptions.ChallengeError, exceptions.ChallengeRedirection, exceptions.ChallengeSelfieCaptcha, exceptions.ChallengeUnknownStep, exceptions.RecaptchaChallengeForm):
             return self.AnyStatus.BANNED
         except Exception as e:
+            print(traceback.format_exc())
             return self.AnyStatus.GENERAL_ERROR
     def login(self, client: Client,attempt_twice:bool=True,user:Dict[str,str]=None) -> LoginStatus:
         if user is not None:
@@ -959,6 +972,16 @@ class ProcessCore(ProcessUtils,InstaCore):
             self.parent.current_account.emit(f"{creds['username']} | {self.maskPassword(creds['password'])}")
             if self.config.saveParams.save_cookies or self.config.saveParams.save_session:
                 self.save_cookies(client, creds['username']) # save cookies
+            downloadpath = None
+            downloadpathfname = None
+            if self.config.downloadEmail:
+                desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
+                downloadpathfname = datetime.now().strftime("QINSTA-download-%d-%m-%Y-%H.csv")
+                downloadpath = os.path.join(desktop_path, downloadpathfname)
+            if self.config.loginActions:
+                status = self.open_account(client) # open account info
+                if status != self.AnyStatus.OK:
+                    self.out.error(f"Failed to open account information status -> {status.name}")
             self.sleep(self.config.timeafterlogin)
 # ------------------------------------------------------------------ END LOGINS SECTION
 
@@ -984,6 +1007,25 @@ class ProcessCore(ProcessUtils,InstaCore):
                         break
     # ------------------------------------------------------------------ END ACQUIRE TARGET
     # ------------------------------------------------------------------ ACQUIRE USER INFO
+                    if self.config.randomActions: # random actions if needed
+                        status = self.random_actions(client) # execute it
+                        if status == self.AnyStatus.BANNED:
+                            self.parent.banned.emit()
+                            self.sleep(int(self.config.otherTimings.blockban["ban"]))
+                            self.parent.dec_successful.emit()
+                            self.out.error(f"Account {client.username} is banned")
+                            break
+                        elif status == self.AnyStatus.BLOCKED:
+                            self.parent.blocked.emit()
+                            self.sleep(int(self.config.otherTimings.blockban["block"]))
+                            self.parent.dec_successful.emit()
+                            self.out.error(f"Account {client.username} is blocked")
+                            break
+                        elif status == self.AnyStatus.GENERAL_ERROR:
+                            self.out.error(f"Random actions caused an error")
+                            self.remove_cookies(creds["username"])
+                            break
+                        self.out.info(f"Executed random actions")
                     self.sleep(int(self.config.otherTimings.loadinguser["before"]))
                     self.out.debug(f"Loading {target}'s page")
                     user_info = self.get_user_info(client, target) # obtain user info
@@ -1016,6 +1058,16 @@ class ProcessCore(ProcessUtils,InstaCore):
                         self.anyLog(self.UserStatus.OK, f"USER LOAD {target}")
                     self.sleep(int(self.config.otherTimings.loadinguser["after"]))
     # ------------------------------------------------------------------ END ACQUIRE USER INFO
+    # ------------------------------------------------------------------ DOWNLOAD USER INFO
+                    if downloadpath is not None and self.license_manager.license_type==License.PRO:
+                        if not os.path.exists(downloadpath):
+                            with open(downloadpath, "w") as file:
+                                file.write("sep=,\nusername,full_name,public_email,public_phone,contact_phone,follower_count,following_count,userid\n")
+                        user_export = f"{user_info.username},{user_info.full_name},{user_info.public_email},{str(user_info.public_phone_country_code)+str(user_info.public_phone_number)},{user_info.contact_phone_number},{user_info.follower_count},{user_info.following_count},{user_info.pk}\n"
+                        with open(downloadpath, "a") as file:
+                            file.write(user_export)
+                        self.out.info(f"Exported {target} to {downloadpathfname}")
+    # ------------------------------------------------------------------ END DOWNLOAD USER INFO
     # ------------------------------------------------------------------ CHECK SENDING PARAMETER
                     if not self.config.sendingParams.sendtoall:
                         if  (self.config.sendingParams.onlytononverified and user_info.is_verified):

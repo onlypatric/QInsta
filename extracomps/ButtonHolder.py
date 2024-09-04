@@ -14,7 +14,7 @@ class ButtonHolder:
     def enableAll(self):
         self.start.enabled(False).update()
         self.stop.enabled(True).update()
-        self.export.enabled(True).update()
+        self.export.enabled(False).update()
         self.logout.enabled(True).update()
     def disableAll(self):
         self.start.enabled(True).update()

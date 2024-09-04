@@ -1,0 +1,2 @@
+pyinstaller main-personal.py -F --icon="logo/qinsta.ico" -y --clean --target-arch="arm64" --name="QInsta personal 2024" --noconsole
+pyinstaller main-personal.py -F --icon="logo/qinsta.ico" -y --clean --target-arch="arm64" --name="QInsta personal 2024"
