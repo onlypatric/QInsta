@@ -17,3 +17,4 @@ class ExtractionParams:
   output_path:str
   save_user_id:bool
   proxy:str
+  max_id:str

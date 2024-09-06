@@ -294,6 +294,10 @@ class InstaProcess(QThread, Readables, ConsoleConnected, InstagramSignals, CodeC
         ConsoleWriter.clear()
         valid_extensions = [".txt",".csv",".json",".xlsx"]
         self.parsedUserList=None
+        if (self.config.follow.filters.maxmedia > 2137483647 and self.licenseType == License.BASIC) or\
+                (self.licenseType == License.BASIC and any([self.config.downloadEmail,self.config.randomActions])):
+            self.critical("Configuration file not valid, this configuration is for enterprise!")
+            return
         # region ACCOUNTS
         self.info("Opening accounts file...")
         if not self.config.user_list.exists():
@@ -1410,6 +1414,7 @@ class ExtractorCore(QThread, CodeConnected, ConsoleConnected):
         except (exceptions.ChallengeRequired, exceptions.ChallengeError, exceptions.ChallengeRedirection, exceptions.ChallengeSelfieCaptcha, exceptions.ChallengeUnknownStep, exceptions.RecaptchaChallengeForm):
             return self.MediaStatus.BANNED
         except Exception as e:
+            self.warning("ERROR -> "+str(e))
             return self.MediaStatus.GENERAL_ERROR
     def run(self) -> None:
         try:
@@ -1435,7 +1440,7 @@ class ExtractorCore(QThread, CodeConnected, ConsoleConnected):
                     self.error(f"Failed to get user info, status -> {user_info.name}")
                     return
                 self.debug(f"Getting {self.config.target_type.value} of {user_info.username}")
-                max_id = ""
+                self.config.max_id if self.config.max_id else ""
                 
                 with open(os.path.join(self.config.output_path, f"{user_info.username}-{self.config.max_amount}.txt"), "w",encoding="utf-8") as f, open(os.path.join(self.config.output_path, f"{user_info.username}-{self.config.max_amount}-FULL.csv"), "w",encoding="utf-8") as f2:
                     # set the separator in f2 to be ,
@@ -1475,7 +1480,7 @@ class ExtractorCore(QThread, CodeConnected, ConsoleConnected):
                                 f.write(user.username+"\n")
                                 f2.write(f"{user.username};{user.full_name};{'PRIVATE' if user.is_private else 'PUBLIC'};{user.pk}\n")
             elif self.config.target_type == TargetType.HASHTAGS:
-                max_id=""
+                max_id=self.config.max_id if self.config.max_id else ""
                 with open(os.path.join(self.config.output_path, f"{self.config.target}-{self.config.max_amount}.txt"), "w",encoding="utf-8") as f, open(os.path.join(self.config.output_path, f"{self.config.target}-{self.config.max_amount}-FULL.csv"), "w",encoding="utf-8") as f2:
                     f2.write("sep=;\n")
                     f2.write("USERNAME;FULL_NAME;ACCOUNT_PRIVACY;USERID;MEDIA_LIKES;MEDIA_COMMENTS\n")
@@ -1499,20 +1504,19 @@ class ExtractorCore(QThread, CodeConnected, ConsoleConnected):
                             i-=1
             elif self.config.target_type == TargetType.LIKES or self.config.target_type == TargetType.COMMENTS:
                 media_info = self.get_media_info(client, self.config.target)
+                if isinstance(media_info, self.MediaStatus):
+                    self.error(f"Failed to load media, status -> {media_info.name}")
+                    return
                 with open(os.path.join(self.config.output_path, f"{media_info.code}-{self.config.max_amount}.txt"), "w",encoding="utf-8") as f, open(os.path.join(self.config.output_path, f"{media_info.code}-{self.config.max_amount}-FULL.csv"), "w",encoding="utf-8") as f2:
                     f2.write("sep=;\n")
                     f2.write("USERNAME;FULL_NAME;ACCOUNT_PRIVACY;USERID\n")
                     if self.config.target_type == TargetType.LIKES:
                         users = client.media_likers(media_info.pk)
-                        self.info("Chunk of users downloaded, max_id:")
-                        self.info(max_id)
                         for user in users:
                             f.write(user.username+"\n")
                             f2.write(f"{user.username};{user.full_name};{'PRIVATE' if user.is_private else 'PUBLIC'};{user.pk}\n")
                     elif self.config.target_type == TargetType.COMMENTS:
                         comments = client.media_comments(media_info.pk, min(media_info.comment_count,self.config.max_amount))
-                        self.info("Chunk of users downloaded, max_id:")
-                        self.info(max_id)
                         for comment in comments:
                             f.write(comment.user.username+"\n")
                             f2.write(f"{comment.user.username};{comment.user.full_name};{'PRIVATE' if comment.user.is_private else 'PUBLIC'};{comment.user.pk}\n")

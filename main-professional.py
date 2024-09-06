@@ -631,6 +631,7 @@ class MainWindow(Window,Configured):
                     GroupBox([Field().id("e-amount")], "Max amount to extract"),
                 ).expandMin(),
                 GroupBox([Field().id("e-proxy")], "Proxy"),
+                GroupBox([Field().id("e-maxid")], "Last Id"),
                 GroupBox([Button("Select folder").action(self.select_extractor_save_folder),Label("None").id("e-folder"),CheckBox("Save extra data file").id("e-saveextra")], "Output file").expandMin(),
                 Button("Start script").action(self.start_extraction),
                 Text("Output console"),
@@ -680,7 +681,8 @@ class MainWindow(Window,Configured):
             max_amount=int(Finder.get("e-amount").text()),
             proxy=Finder.get("e-proxy").text(),
             save_user_id=Finder.get("e-saveextra").isChecked(),
-            output_path=Finder.get("e-folder").text()
+            output_path=Finder.get("e-folder").text(),
+            max_id=Finder.get("e-maxid").text(),
         )
         self.ec = ExtractorCore(ep, self.eConsoleWrite)
         self.ec.console.connect(self.eConsoleWrite)

@@ -175,8 +175,8 @@ def open_config(path: str, dct:dict=None):
         sendingParams=sendingParams,
         device=device,
         timebeforelogin=res["timebeforelogin"],
-        timeafterlogin=res["timeafterlogin"],
-        loginActions=res["loginActions"],
-        randomActions=res["randomActions"],
+        timeafterlogin=res.get("timeafterlogin"),
+        loginActions=res.get("loginActions",False),
+        randomActions=res.get("randomActions",False),
         downloadEmail=res["downloadEmail"]
     )
