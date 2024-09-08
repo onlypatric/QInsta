@@ -19,7 +19,7 @@ from extracomps.ConsoleWriter import ConsoleWriter
 from extracomps.ConsoleList import ConsoleList
 import pandas as pd
 import json
-from appdata import AppDataPaths
+from appdirs import user_data_dir
 import random
 import json
 from .License import License,LicenseManager,ActionType
@@ -243,21 +243,22 @@ class InstaProcess(QThread, Readables, ConsoleConnected, InstagramSignals, CodeC
         self.config = config
         self.accepted = None
         self.buttons = buttons
-        self.appdata = AppDataPaths()
+        self.appdata = user_data_dir("QInsta","pstudios",roaming=True if os.name == "nt" else False)
         self.logins = LogRegister("Login")
         self.messages = LogRegister("Messages")
         self.comments = LogRegister("Comments")
         self.likes = LogRegister("Likes")
         self.follows = LogRegister("Follows")
         self.all = LogRegister("All")
-        self.config_path = self.appdata.get_config_path("QInsta",create=True) # AppDataPaths()
+        self.config_path = self.appdata
+        if not os.path.exists(self.config_path):
+            os.makedirs(self.config_path, exist_ok=True)
         self.cookiepath = os.path.join(self.config_path, "Cookies")
         self.log_path = os.path.join(self.config_path, "logs")
         os.makedirs(self.config_path,exist_ok=True)
         os.makedirs(self.cookiepath, exist_ok=True)
     def run(self):
-        license_location = os.path.join(AppDataPaths().get_config_path(
-            "QInsta", create=True), "LICENSE-KEY.txt")
+        license_location = os.path.join(self.config_path, "LICENSE-KEY.txt")
         device_id = hex(getnode()).upper()
         BASE_URL = "https://patricpintescul.pythonanywhere.com"
         url = f"{BASE_URL}/check_and_add_device"
@@ -909,7 +910,7 @@ class ProcessCore(ProcessUtils,InstaCore):
     out: ConsoleConnected
     testmode:bool = TEST_MODE
 
-    def __init__(self, userlist, target, config, out: ConsoleConnected|InstaProcess, path:AppDataPaths,cookie_path:str, testmode: bool = False) -> None:
+    def __init__(self, userlist, target, config, out: ConsoleConnected|InstaProcess, path:str,cookie_path:str, testmode: bool = False) -> None:
         self.userlist = userlist
         self.targetlist = target
         self.config = config
@@ -917,7 +918,7 @@ class ProcessCore(ProcessUtils,InstaCore):
         self.path = path
         self.cookiepath = cookie_path
         self.parent=out
-        licpath = os.path.join(path.get_config_path("QInsta", create=True), "data")
+        licpath = os.path.join(path, "data")
         if not os.path.exists(licpath):os.makedirs(licpath,exist_ok=True)
         self.blacklist_path = os.path.join(licpath, "blacklist.txt")
         self.license_tier = self.parent.licenseType
@@ -1305,8 +1306,10 @@ class ExtractorCore(QThread, CodeConnected, ConsoleConnected):
     def __init__(self, config:ExtractionParams,testmode: bool = False) -> None:
         QThread.__init__(self)
         self.config = config
-        self.appdatapath = AppDataPaths("EQInsta")
-        self.cookiepath = self.appdatapath.get_config_path("cookies", create=True)
+        self.appdatapath = user_data_dir("EQInsta","pstudios",roaming=True if os.name=="nt" else False)
+        self.cookiepath = os.path.join(self.appdatapath,"cookies/")
+        if not os.path.exists(self.appdatapath):
+            os.makedirs(self.appdatapath,exist_ok=True)
 
     def new_client(self) -> Client:
         client = Client()

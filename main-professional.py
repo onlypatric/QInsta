@@ -1,14 +1,8 @@
-
-
-
-# TODO: DOWNLOAD EMAILS THING (CONFIG ALREADY DONE)
-
-
+from appdirs import user_data_dir
 
 from datetime import datetime
 import os
 from uuid import getnode
-from appdata import AppDataPaths
 from typing import Dict, List, Tuple,Union
 from extracomps.ButtonHolder import ButtonHolder
 from extracomps.Tiles import StringTile, Tile, MiniTile
@@ -21,7 +15,7 @@ import json
 from utils.ExtractionParams import ExtractionParams, TargetType
 from utils.configLoader import open_config
 import re
-from extracomps.ConsoleWriter import Incrementer
+from extracomps.ConsoleWriter import ConsoleWriter, Incrementer
 from utils.instaProcess import ExtractorCore, InstaProcess, License
 def obtain_unique_code() -> str:
     return hex(getnode()).upper()
@@ -591,7 +585,7 @@ class MainWindow(Window,Configured):
                     ).expandMin(),
                     Vertical(
                         [Button("Reset counters").action(lambda: Incrementer().resetAll()), Button("Clear blacklist").action(
-                            lambda: open(os.path.join(AppDataPaths().get_config_path("QInsta"), "data/blacklist.txt"), "w").close() if os.path.exists(os.path.join(AppDataPaths().get_config_path("QInsta"), "data/blacklist.txt")) else None)],
+                            lambda: open(os.path.join(user_data_dir("QInsta", "pstudios", roaming=True if os.name == "nt" else False), "data/blacklist.txt"), "w").close() if os.path.exists(os.path.join(user_data_dir("QInsta", "pstudios", roaming=True if os.name == "nt" else False), "data/blacklist.txt")) else None)],
                         [
                             Tile("Interactions").id("Total"),
                             Tile("Logins").id("Logins")
@@ -723,15 +717,27 @@ class MainWindow(Window,Configured):
     def eConsoleWrite(self, message, type):
         Finder.get("e-console").emit(message, type)
     def start(self):
-        license_location = os.path.join(AppDataPaths().get_config_path(
-            "QInsta", create=True),"LICENSE-KEY.txt")
-        if not os.path.exists(license_location):
-            # ask the user for a license key
-            license_key, ok = QInputDialog.getText(self, "License key", "Enter your license key:")
-            if ok:
-                with open(license_location, "w") as f:
-                    f.write(license_key)
-            
+        try:
+            license_location = os.path.join(user_data_dir(
+                "QInsta", "pstudios", roaming=True if os.name == "nt" else False), "LICENSE-KEY.txt")
+            ConsoleWriter.debug("Opening key at "+license_location)
+            if not os.path.exists(license_location):
+                if not os.path.exists(user_data_dir(
+                    "QInsta", "pstudios", roaming=True if os.name == "nt" else False)):
+                    os.makedirs(user_data_dir(
+                        "QInsta", "pstudios", roaming=True if os.name == "nt" else False),exist_ok=True)
+                # ask the user for a license key
+                license_key, ok = QInputDialog.getText(self, "License key", "Enter your license key:")
+                if ok:
+                    with open(license_location, "w") as f:
+                        f.write(license_key)
+                    ConsoleWriter.debug("License key saved at "+license_location)
+                else:
+                    return
+        except:
+            QMessageBox.critical(self, "Error", "Failed to save license key at "+user_data_dir(
+                "QInsta", "pstudios", roaming=True if os.name == "nt" else False))
+            return
         path = Finder.get("currentConfig").text()
         use_curr_config = False
         if not os.path.exists(path):
