@@ -283,6 +283,11 @@ class InstaProcess(QThread, Readables, ConsoleConnected, InstagramSignals, CodeC
                 }
                 license_info_response = get(license_info_url, data=license_name_data,json=license_name_data,params=license_name_data)
                 self.licenseType = License.BASIC
+                if license_info_response.json().get("max_devices",None)==None:
+                    self.critical(
+                        "License does not exist or is full of registered computers")
+                    os.remove(license_location)
+                    return
                 if license_info_response.json()["max_devices"]==3:
                     self.licenseType = License.PRO
                 if response.json()["result"] == False:  # license is not valid
@@ -290,6 +295,7 @@ class InstaProcess(QThread, Readables, ConsoleConnected, InstagramSignals, CodeC
                     os.remove(license_location)
                     return
             except Exception as e:
+                traceback.print_exc()
                 self.critical(f"Error checking license, please retry: {e}")
                 return
         ConsoleWriter.clear()
@@ -466,7 +472,7 @@ class ProcessUtils:
             return True
         if filter.minfollowers > user_info.follower_count:
             return False
-        if filter.maxfollowers < user_info.follower_count and filter.maxfollowers<filter.minfollowers:
+        if (filter.maxfollowers < user_info.follower_count and filter.maxfollowers<filter.minfollowers) and filter.maxfollowers:
             return False
         if filter.minmedia > user_info.media_count:
             return False
@@ -1185,6 +1191,8 @@ class ProcessCore(ProcessUtils,InstaCore):
     # ------------------------------------------------------------------ END LOAD MEDIA
     # ------------------------------------------------------------------ SEND MESSAGE
                     if self.config.message.enabled:
+                        if self.config.message.enabled_filters:
+                            self.filter_check(self.config.message.filters,user_info)
                         if (self.config.message.enabled_filters and self.filter_check(self.config.message.filters, user_info)) or not self.config.message.enabled_filters:
                             self.sleep(self.config.message.timebeforemessage)
                             self.out.debug(f"Reaching {target} through DMs")
@@ -1443,7 +1451,7 @@ class ExtractorCore(QThread, CodeConnected, ConsoleConnected):
                     self.error(f"Failed to get user info, status -> {user_info.name}")
                     return
                 self.debug(f"Getting {self.config.target_type.value} of {user_info.username}")
-                self.config.max_id if self.config.max_id else ""
+                max_id = self.config.max_id if self.config.max_id else ""
                 
                 with open(os.path.join(self.config.output_path, f"{user_info.username}-{self.config.max_amount}.txt"), "w",encoding="utf-8") as f, open(os.path.join(self.config.output_path, f"{user_info.username}-{self.config.max_amount}-FULL.csv"), "w",encoding="utf-8") as f2:
                     # set the separator in f2 to be ,
