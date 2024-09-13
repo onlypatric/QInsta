@@ -793,7 +793,6 @@ class InstaCore:
         except (exceptions.ChallengeRequired,exceptions.ChallengeError,exceptions.ChallengeRedirection,exceptions.ChallengeSelfieCaptcha,exceptions.ChallengeUnknownStep,exceptions.RecaptchaChallengeForm):
             return self.MediaStatus.BANNED
         except Exception as e:
-            print(traceback.format_exc())
             return self.MediaStatus.GENERAL_ERROR
     def random_actions(self, client:Client):
         try:
@@ -827,7 +826,6 @@ class InstaCore:
         except (exceptions.ChallengeRequired, exceptions.ChallengeError, exceptions.ChallengeRedirection, exceptions.ChallengeSelfieCaptcha, exceptions.ChallengeUnknownStep, exceptions.RecaptchaChallengeForm):
             return self.AnyStatus.BANNED
         except Exception as e:
-            print(traceback.format_exc())
             return self.AnyStatus.GENERAL_ERROR
     def login(self, client: Client,attempt_twice:bool=True,user:Dict[str,str]=None) -> LoginStatus:
         if user is not None:
@@ -1533,6 +1531,5 @@ class ExtractorCore(QThread, CodeConnected, ConsoleConnected):
                             f2.write(f"{comment.user.username};{comment.user.full_name};{'PRIVATE' if comment.user.is_private else 'PUBLIC'};{comment.user.pk}\n")
             self.info(f"Done, extracted all {self.config.max_amount} users")
         except Exception as e:
-            print(e)
             self.error(str(e))
             self.warning("Stopping extraction process")
