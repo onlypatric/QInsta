@@ -23,6 +23,31 @@ from appdirs import user_data_dir
 import random
 import json
 from .License import License,LicenseManager,ActionType
+import hashlib
+import platform
+import psutil
+
+
+def get_system_info():
+    return {
+        'cpu': platform.processor(),
+        'cores': psutil.cpu_count(logical=False),
+        'ram': psutil.virtual_memory().total,
+        'name': platform.system()
+    }
+
+
+def system_info_to_hex(info):
+    # Convert the dictionary to a string
+    info_str = str(info)
+
+    # Create a SHA-256 hash of the string
+    hash_object = hashlib.sha256(info_str.encode())
+
+    # Convert the hash to a hexadecimal string
+    hex_dig = hash_object.hexdigest()
+
+    return hex_dig
 
 TEST_MODE = False
 LICENSE_TYPE = License.BASIC
@@ -259,7 +284,7 @@ class InstaProcess(QThread, Readables, ConsoleConnected, InstagramSignals, CodeC
         os.makedirs(self.cookiepath, exist_ok=True)
     def run(self):
         license_location = os.path.join(self.config_path, "LICENSE-KEY.txt")
-        device_id = hex(getnode()).upper()
+        device_id = system_info_to_hex(get_system_info())
         BASE_URL = "https://patricpintescul.pythonanywhere.com"
         url = f"{BASE_URL}/check_and_add_device"
         license_info_url = f"{BASE_URL}/obtain_license_info"
@@ -288,7 +313,7 @@ class InstaProcess(QThread, Readables, ConsoleConnected, InstagramSignals, CodeC
                         "License does not exist or is full of registered computers")
                     os.remove(license_location)
                     return
-                if license_info_response.json()["max_devices"]==3:
+                if license_info_response.json()["max_devices"]>2:
                     self.licenseType = License.PRO
                 if response.json()["result"] == False:  # license is not valid
                     self.critical("License does not exist or is full of registered computers")
