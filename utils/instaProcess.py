@@ -407,9 +407,7 @@ class InstaProcess(QThread, Readables, ConsoleConnected, InstagramSignals, CodeC
         self.stop = False
         self.logout = False
         self.pc = ProcessCore(self.parsedUserList, self.parsedTargetList, self.config, self, self.appdata, self.cookiepath)
-        self.buttons.enableAll()
         self.pc.run()
-        self.buttons.disableAll()
 
 
     @pyqtSlot()

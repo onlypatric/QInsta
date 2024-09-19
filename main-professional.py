@@ -579,9 +579,9 @@ class MainWindow(Window,Configured):
                     Horizontal(
                         Button("Start").id(
                             "b-start").action(self.start),
-                        Button("Stop").id("b-stop").enabled(False),
-                        Button("Export...").id("b-export").enabled(False),
-                        Button("Logout").id("b-logout").enabled(False)
+                        Button("Stop").id("b-stop").enabled(True),
+                        Button("Export...").id("b-export").enabled(True),
+                        Button("Logout").id("b-logout").enabled(True)
                     ).expandMin(),
                     Vertical(
                         [Button("Reset counters").action(lambda: Incrementer().resetAll()), Button("Clear blacklist").action(
@@ -841,7 +841,6 @@ class MainWindow(Window,Configured):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    app.setStyle(QStyleFactory.create("macOS"))
     window = MainWindow()
     window.show()
     sys.exit(app.exec())
